@@ -60,3 +60,4 @@ build/
 # ----------------------------------------
 .DS_Store
 Thumbs.db
+admin_backend_final/.env
