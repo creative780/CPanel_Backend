@@ -163,6 +163,7 @@ if not CORS_ALLOW_ALL_ORIGINS:
         "https://api.click2print.store",
         "https://click2print.store",
         "https://www.click2print.store",
+        "https://app.click2print.store",
     ] + [o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS_EXTRA", "").split(",") if o.strip()]
 
 CORS_ALLOW_CREDENTIALS = True
