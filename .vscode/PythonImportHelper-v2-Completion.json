@@ -1,0 +1,2277 @@
+[
+    {
+        "label": "django.contrib.auth.models",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "django.contrib.auth.models",
+        "description": "django.contrib.auth.models",
+        "detail": "django.contrib.auth.models",
+        "documentation": {}
+    },
+    {
+        "label": "AbstractUser",
+        "importPath": "django.contrib.auth.models",
+        "description": "django.contrib.auth.models",
+        "isExtraImport": true,
+        "detail": "django.contrib.auth.models",
+        "documentation": {}
+    },
+    {
+        "label": "django.contrib.auth.validators",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "django.contrib.auth.validators",
+        "description": "django.contrib.auth.validators",
+        "detail": "django.contrib.auth.validators",
+        "documentation": {}
+    },
+    {
+        "label": "django.db.models.deletion",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "django.db.models.deletion",
+        "description": "django.db.models.deletion",
+        "detail": "django.db.models.deletion",
+        "documentation": {}
+    },
+    {
+        "label": "django.utils.timezone",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "django.utils.timezone",
+        "description": "django.utils.timezone",
+        "detail": "django.utils.timezone",
+        "documentation": {}
+    },
+    {
+        "label": "now",
+        "importPath": "django.utils.timezone",
+        "description": "django.utils.timezone",
+        "isExtraImport": true,
+        "detail": "django.utils.timezone",
+        "documentation": {}
+    },
+    {
+        "label": "now",
+        "importPath": "django.utils.timezone",
+        "description": "django.utils.timezone",
+        "isExtraImport": true,
+        "detail": "django.utils.timezone",
+        "documentation": {}
+    },
+    {
+        "label": "settings",
+        "importPath": "django.conf",
+        "description": "django.conf",
+        "isExtraImport": true,
+        "detail": "django.conf",
+        "documentation": {}
+    },
+    {
+        "label": "settings",
+        "importPath": "django.conf",
+        "description": "django.conf",
+        "isExtraImport": true,
+        "detail": "django.conf",
+        "documentation": {}
+    },
+    {
+        "label": "settings",
+        "importPath": "django.conf",
+        "description": "django.conf",
+        "isExtraImport": true,
+        "detail": "django.conf",
+        "documentation": {}
+    },
+    {
+        "label": "settings",
+        "importPath": "django.conf",
+        "description": "django.conf",
+        "isExtraImport": true,
+        "detail": "django.conf",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "migrations",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "IntegrityError",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "transaction",
+        "importPath": "django.db",
+        "description": "django.db",
+        "isExtraImport": true,
+        "detail": "django.db",
+        "documentation": {}
+    },
+    {
+        "label": "admin",
+        "importPath": "django.contrib",
+        "description": "django.contrib",
+        "isExtraImport": true,
+        "detail": "django.contrib",
+        "documentation": {}
+    },
+    {
+        "label": "admin",
+        "importPath": "django.contrib",
+        "description": "django.contrib",
+        "isExtraImport": true,
+        "detail": "django.contrib",
+        "documentation": {}
+    },
+    {
+        "label": "AppConfig",
+        "importPath": "django.apps",
+        "description": "django.apps",
+        "isExtraImport": true,
+        "detail": "django.apps",
+        "documentation": {}
+    },
+    {
+        "label": "GenericForeignKey",
+        "importPath": "django.contrib.contenttypes.fields",
+        "description": "django.contrib.contenttypes.fields",
+        "isExtraImport": true,
+        "detail": "django.contrib.contenttypes.fields",
+        "documentation": {}
+    },
+    {
+        "label": "ContentType",
+        "importPath": "django.contrib.contenttypes.models",
+        "description": "django.contrib.contenttypes.models",
+        "isExtraImport": true,
+        "detail": "django.contrib.contenttypes.models",
+        "documentation": {}
+    },
+    {
+        "label": "serializers",
+        "importPath": "rest_framework",
+        "description": "rest_framework",
+        "isExtraImport": true,
+        "detail": "rest_framework",
+        "documentation": {}
+    },
+    {
+        "label": "status",
+        "importPath": "rest_framework",
+        "description": "rest_framework",
+        "isExtraImport": true,
+        "detail": "rest_framework",
+        "documentation": {}
+    },
+    {
+        "label": "post_save",
+        "importPath": "django.db.models.signals",
+        "description": "django.db.models.signals",
+        "isExtraImport": true,
+        "detail": "django.db.models.signals",
+        "documentation": {}
+    },
+    {
+        "label": "post_delete",
+        "importPath": "django.db.models.signals",
+        "description": "django.db.models.signals",
+        "isExtraImport": true,
+        "detail": "django.db.models.signals",
+        "documentation": {}
+    },
+    {
+        "label": "receiver",
+        "importPath": "django.dispatch",
+        "description": "django.dispatch",
+        "isExtraImport": true,
+        "detail": "django.dispatch",
+        "documentation": {}
+    },
+    {
+        "label": "uuid",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "uuid",
+        "description": "uuid",
+        "detail": "uuid",
+        "documentation": {}
+    },
+    {
+        "label": "user_logged_in",
+        "importPath": "django.contrib.auth.signals",
+        "description": "django.contrib.auth.signals",
+        "isExtraImport": true,
+        "detail": "django.contrib.auth.signals",
+        "documentation": {}
+    },
+    {
+        "label": "user_logged_out",
+        "importPath": "django.contrib.auth.signals",
+        "description": "django.contrib.auth.signals",
+        "isExtraImport": true,
+        "detail": "django.contrib.auth.signals",
+        "documentation": {}
+    },
+    {
+        "label": "TestCase",
+        "importPath": "django.test",
+        "description": "django.test",
+        "isExtraImport": true,
+        "detail": "django.test",
+        "documentation": {}
+    },
+    {
+        "label": "path",
+        "importPath": "django.urls",
+        "description": "django.urls",
+        "isExtraImport": true,
+        "detail": "django.urls",
+        "documentation": {}
+    },
+    {
+        "label": "path",
+        "importPath": "django.urls",
+        "description": "django.urls",
+        "isExtraImport": true,
+        "detail": "django.urls",
+        "documentation": {}
+    },
+    {
+        "label": "include",
+        "importPath": "django.urls",
+        "description": "django.urls",
+        "isExtraImport": true,
+        "detail": "django.urls",
+        "documentation": {}
+    },
+    {
+        "label": "static",
+        "importPath": "django.conf.urls.static",
+        "description": "django.conf.urls.static",
+        "isExtraImport": true,
+        "detail": "django.conf.urls.static",
+        "documentation": {}
+    },
+    {
+        "label": "static",
+        "importPath": "django.conf.urls.static",
+        "description": "django.conf.urls.static",
+        "isExtraImport": true,
+        "detail": "django.conf.urls.static",
+        "documentation": {}
+    },
+    {
+        "label": "os",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "os",
+        "description": "os",
+        "detail": "os",
+        "documentation": {}
+    },
+    {
+        "label": "datetime",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "Image",
+        "importPath": "PIL",
+        "description": "PIL",
+        "isExtraImport": true,
+        "detail": "PIL",
+        "documentation": {}
+    },
+    {
+        "label": "JsonResponse",
+        "importPath": "django.http",
+        "description": "django.http",
+        "isExtraImport": true,
+        "detail": "django.http",
+        "documentation": {}
+    },
+    {
+        "label": "Http404",
+        "importPath": "django.http",
+        "description": "django.http",
+        "isExtraImport": true,
+        "detail": "django.http",
+        "documentation": {}
+    },
+    {
+        "label": "json",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "json",
+        "description": "json",
+        "detail": "json",
+        "documentation": {}
+    },
+    {
+        "label": "slugify",
+        "importPath": "django.utils.text",
+        "description": "django.utils.text",
+        "isExtraImport": true,
+        "detail": "django.utils.text",
+        "documentation": {}
+    },
+    {
+        "label": "csrf_exempt",
+        "importPath": "django.views.decorators.csrf",
+        "description": "django.views.decorators.csrf",
+        "isExtraImport": true,
+        "detail": "django.views.decorators.csrf",
+        "documentation": {}
+    },
+    {
+        "label": "base64",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "base64",
+        "description": "base64",
+        "detail": "base64",
+        "documentation": {}
+    },
+    {
+        "label": "BytesIO",
+        "importPath": "io",
+        "description": "io",
+        "isExtraImport": true,
+        "detail": "io",
+        "documentation": {}
+    },
+    {
+        "label": "ContentFile",
+        "importPath": "django.core.files.base",
+        "description": "django.core.files.base",
+        "isExtraImport": true,
+        "detail": "django.core.files.base",
+        "documentation": {}
+    },
+    {
+        "label": "default_storage",
+        "importPath": "django.core.files.storage",
+        "description": "django.core.files.storage",
+        "isExtraImport": true,
+        "detail": "django.core.files.storage",
+        "documentation": {}
+    },
+    {
+        "label": "traceback",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "traceback",
+        "description": "traceback",
+        "detail": "traceback",
+        "documentation": {}
+    },
+    {
+        "label": "timezone",
+        "importPath": "django.utils",
+        "description": "django.utils",
+        "isExtraImport": true,
+        "detail": "django.utils",
+        "documentation": {}
+    },
+    {
+        "label": "re",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "re",
+        "description": "re",
+        "detail": "re",
+        "documentation": {}
+    },
+    {
+        "label": "require_http_methods",
+        "importPath": "django.views.decorators.http",
+        "description": "django.views.decorators.http",
+        "isExtraImport": true,
+        "detail": "django.views.decorators.http",
+        "documentation": {}
+    },
+    {
+        "label": "require_POST",
+        "importPath": "django.views.decorators.http",
+        "description": "django.views.decorators.http",
+        "isExtraImport": true,
+        "detail": "django.views.decorators.http",
+        "documentation": {}
+    },
+    {
+        "label": "get_user_model",
+        "importPath": "django.contrib.auth",
+        "description": "django.contrib.auth",
+        "isExtraImport": true,
+        "detail": "django.contrib.auth",
+        "documentation": {}
+    },
+    {
+        "label": "make_password",
+        "importPath": "django.contrib.auth.hashers",
+        "description": "django.contrib.auth.hashers",
+        "isExtraImport": true,
+        "detail": "django.contrib.auth.hashers",
+        "documentation": {}
+    },
+    {
+        "label": "check_password",
+        "importPath": "django.contrib.auth.hashers",
+        "description": "django.contrib.auth.hashers",
+        "isExtraImport": true,
+        "detail": "django.contrib.auth.hashers",
+        "documentation": {}
+    },
+    {
+        "label": "get_object_or_404",
+        "importPath": "django.shortcuts",
+        "description": "django.shortcuts",
+        "isExtraImport": true,
+        "detail": "django.shortcuts",
+        "documentation": {}
+    },
+    {
+        "label": "Decimal",
+        "importPath": "decimal",
+        "description": "decimal",
+        "isExtraImport": true,
+        "detail": "decimal",
+        "documentation": {}
+    },
+    {
+        "label": "api_view",
+        "importPath": "rest_framework.decorators",
+        "description": "rest_framework.decorators",
+        "isExtraImport": true,
+        "detail": "rest_framework.decorators",
+        "documentation": {}
+    },
+    {
+        "label": "Response",
+        "importPath": "rest_framework.response",
+        "description": "rest_framework.response",
+        "isExtraImport": true,
+        "detail": "rest_framework.response",
+        "documentation": {}
+    },
+    {
+        "label": "ObjectDoesNotExist",
+        "importPath": "django.core.exceptions",
+        "description": "django.core.exceptions",
+        "isExtraImport": true,
+        "detail": "django.core.exceptions",
+        "documentation": {}
+    },
+    {
+        "label": "get_asgi_application",
+        "importPath": "django.core.asgi",
+        "description": "django.core.asgi",
+        "isExtraImport": true,
+        "detail": "django.core.asgi",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "default_headers",
+        "importPath": "corsheaders.defaults",
+        "description": "corsheaders.defaults",
+        "isExtraImport": true,
+        "detail": "corsheaders.defaults",
+        "documentation": {}
+    },
+    {
+        "label": "get_wsgi_application",
+        "importPath": "django.core.wsgi",
+        "description": "django.core.wsgi",
+        "isExtraImport": true,
+        "detail": "django.core.wsgi",
+        "documentation": {}
+    },
+    {
+        "label": "sys",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "sys",
+        "description": "sys",
+        "detail": "sys",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0001_initial",
+        "description": "admin_backend_final.migrations.0001_initial",
+        "peekOfCode": "class Migration(migrations.Migration):\n    initial = True\n    dependencies = [\n        ('auth', '0012_alter_user_first_name_max_length'),\n    ]\n    operations = [\n        migrations.CreateModel(\n            name='Admin',\n            fields=[\n                ('admin_id', models.CharField(max_length=100, primary_key=True, serialize=False)),",
+        "detail": "admin_backend_final.migrations.0001_initial",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0002_remove_image_url_image_image_file",
+        "description": "admin_backend_final.migrations.0002_remove_image_url_image_image_file",
+        "peekOfCode": "class Migration(migrations.Migration):\n    dependencies = [\n        ('admin_backend_final', '0001_initial'),\n    ]\n    operations = [\n        migrations.RemoveField(\n            model_name='image',\n            name='url',\n        ),\n        migrations.AddField(",
+        "detail": "admin_backend_final.migrations.0002_remove_image_url_image_image_file",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0003_alter_productseo_meta_keywords",
+        "description": "admin_backend_final.migrations.0003_alter_productseo_meta_keywords",
+        "peekOfCode": "class Migration(migrations.Migration):\n    dependencies = [\n        ('admin_backend_final', '0002_remove_image_url_image_image_file'),\n    ]\n    operations = [\n        migrations.AlterField(\n            model_name='productseo',\n            name='meta_keywords',\n            field=models.JSONField(blank=True, default=list),\n        ),",
+        "detail": "admin_backend_final.migrations.0003_alter_productseo_meta_keywords",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0004_remove_productimage_is_primary",
+        "description": "admin_backend_final.migrations.0004_remove_productimage_is_primary",
+        "peekOfCode": "class Migration(migrations.Migration):\n    dependencies = [\n        ('admin_backend_final', '0003_alter_productseo_meta_keywords'),\n    ]\n    operations = [\n        migrations.RemoveField(\n            model_name='productimage',\n            name='is_primary',\n        ),\n    ]",
+        "detail": "admin_backend_final.migrations.0004_remove_productimage_is_primary",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0005_productseo_custom_tags_productseo_grouped_filters",
+        "description": "admin_backend_final.migrations.0005_productseo_custom_tags_productseo_grouped_filters",
+        "peekOfCode": "class Migration(migrations.Migration):\n    dependencies = [\n        ('admin_backend_final', '0004_remove_productimage_is_primary'),\n    ]\n    operations = [\n        migrations.AddField(\n            model_name='productseo',\n            name='custom_tags',\n            field=models.JSONField(blank=True, default=list),\n        ),",
+        "detail": "admin_backend_final.migrations.0005_productseo_custom_tags_productseo_grouped_filters",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0006_cart_device_uuid_alter_cart_user",
+        "description": "admin_backend_final.migrations.0006_cart_device_uuid_alter_cart_user",
+        "peekOfCode": "class Migration(migrations.Migration):\n    dependencies = [\n        ('admin_backend_final', '0005_productseo_custom_tags_productseo_grouped_filters'),\n    ]\n    operations = [\n        migrations.AddField(\n            model_name='cart',\n            name='device_uuid',\n            field=models.CharField(blank=True, max_length=100, null=True),\n        ),",
+        "detail": "admin_backend_final.migrations.0006_cart_device_uuid_alter_cart_user",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0007_cartitem_selected_size_alter_cart_device_uuid",
+        "description": "admin_backend_final.migrations.0007_cartitem_selected_size_alter_cart_device_uuid",
+        "peekOfCode": "class Migration(migrations.Migration):\n    dependencies = [\n        ('admin_backend_final', '0006_cart_device_uuid_alter_cart_user'),\n    ]\n    operations = [\n        migrations.AddField(\n            model_name='cartitem',\n            name='selected_size',\n            field=models.CharField(blank=True, max_length=50, null=True),\n        ),",
+        "detail": "admin_backend_final.migrations.0007_cartitem_selected_size_alter_cart_device_uuid",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0008_remove_orders_user_orders_user_name",
+        "description": "admin_backend_final.migrations.0008_remove_orders_user_orders_user_name",
+        "peekOfCode": "class Migration(migrations.Migration):\n    dependencies = [\n        ('admin_backend_final', '0007_cartitem_selected_size_alter_cart_device_uuid'),\n    ]\n    operations = [\n        migrations.RemoveField(\n            model_name='orders',\n            name='user',\n        ),\n        migrations.AddField(",
+        "detail": "admin_backend_final.migrations.0008_remove_orders_user_orders_user_name",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0009_alter_adminrole_access_pages",
+        "description": "admin_backend_final.migrations.0009_alter_adminrole_access_pages",
+        "peekOfCode": "class Migration(migrations.Migration):\n    dependencies = [\n        ('admin_backend_final', '0008_remove_orders_user_orders_user_name'),\n    ]\n    operations = [\n        migrations.AlterField(\n            model_name='adminrole',\n            name='access_pages',\n            field=models.JSONField(default=list),\n        ),",
+        "detail": "admin_backend_final.migrations.0009_alter_adminrole_access_pages",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0010_firstcarousel_secondcarousel_firstcarouselimage_and_more",
+        "description": "admin_backend_final.migrations.0010_firstcarousel_secondcarousel_firstcarouselimage_and_more",
+        "peekOfCode": "class Migration(migrations.Migration):\n    dependencies = [\n        ('admin_backend_final', '0009_alter_adminrole_access_pages'),\n    ]\n    operations = [\n        migrations.CreateModel(\n            name='FirstCarousel',\n            fields=[\n                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),\n                ('title', models.CharField(max_length=255)),",
+        "detail": "admin_backend_final.migrations.0010_firstcarousel_secondcarousel_firstcarouselimage_and_more",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0011_blogseo",
+        "description": "admin_backend_final.migrations.0011_blogseo",
+        "peekOfCode": "class Migration(migrations.Migration):\n    dependencies = [\n        ('admin_backend_final', '0010_firstcarousel_secondcarousel_firstcarouselimage_and_more'),\n    ]\n    operations = [\n        migrations.CreateModel(\n            name='BlogSEO',\n            fields=[\n                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),\n                ('meta_title', models.CharField(blank=True, max_length=255)),",
+        "detail": "admin_backend_final.migrations.0011_blogseo",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0012_remove_herobanner_category",
+        "description": "admin_backend_final.migrations.0012_remove_herobanner_category",
+        "peekOfCode": "class Migration(migrations.Migration):\n    dependencies = [\n        ('admin_backend_final', '0011_blogseo'),\n    ]\n    operations = [\n        migrations.RemoveField(\n            model_name='herobanner',\n            name='category',\n        ),\n    ]",
+        "detail": "admin_backend_final.migrations.0012_remove_herobanner_category",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0013_category_order",
+        "description": "admin_backend_final.migrations.0013_category_order",
+        "peekOfCode": "class Migration(migrations.Migration):\n    dependencies = [\n        ('admin_backend_final', '0012_remove_herobanner_category'),\n    ]\n    operations = [\n        migrations.AddField(\n            model_name='category',\n            name='order',\n            field=models.PositiveIntegerField(default=0),\n        ),",
+        "detail": "admin_backend_final.migrations.0013_category_order",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0014_subcategory_order",
+        "description": "admin_backend_final.migrations.0014_subcategory_order",
+        "peekOfCode": "class Migration(migrations.Migration):\n    dependencies = [\n        ('admin_backend_final', '0013_category_order'),\n    ]\n    operations = [\n        migrations.AddField(\n            model_name='subcategory',\n            name='order',\n            field=models.PositiveIntegerField(default=0),\n        ),",
+        "detail": "admin_backend_final.migrations.0014_subcategory_order",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0015_product_order",
+        "description": "admin_backend_final.migrations.0015_product_order",
+        "peekOfCode": "class Migration(migrations.Migration):\n    dependencies = [\n        ('admin_backend_final', '0014_subcategory_order'),\n    ]\n    operations = [\n        migrations.AddField(\n            model_name='product',\n            name='order',\n            field=models.PositiveIntegerField(default=0),\n        ),",
+        "detail": "admin_backend_final.migrations.0015_product_order",
+        "documentation": {}
+    },
+    {
+        "label": "Migration",
+        "kind": 6,
+        "importPath": "admin_backend_final.migrations.0016_firstcarouselimage_caption_firstcarouselimage_title_and_more",
+        "description": "admin_backend_final.migrations.0016_firstcarouselimage_caption_firstcarouselimage_title_and_more",
+        "peekOfCode": "class Migration(migrations.Migration):\n    dependencies = [\n        ('admin_backend_final', '0015_product_order'),\n    ]\n    operations = [\n        migrations.AddField(\n            model_name='firstcarouselimage',\n            name='caption',\n            field=models.CharField(blank=True, default='', max_length=255),\n        ),",
+        "detail": "admin_backend_final.migrations.0016_firstcarouselimage_caption_firstcarouselimage_title_and_more",
+        "documentation": {}
+    },
+    {
+        "label": "AdminBackendFinalConfig",
+        "kind": 6,
+        "importPath": "admin_backend_final.apps",
+        "description": "admin_backend_final.apps",
+        "peekOfCode": "class AdminBackendFinalConfig(AppConfig):\n    default_auto_field = 'django.db.models.BigAutoField'\n    name = 'admin_backend_final'\n    def ready(self):\n        import admin_backend_final.signals",
+        "detail": "admin_backend_final.apps",
+        "documentation": {}
+    },
+    {
+        "label": "User",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class User(AbstractUser):\n    user_id = models.CharField(primary_key=True, max_length=100)\n    email = models.EmailField(unique=True)\n    password_hash = models.CharField(max_length=255)\n    created_at = models.DateTimeField(auto_now_add=True)\n    updated_at = models.DateTimeField(auto_now=True)\nclass Admin(models.Model):\n    admin_id = models.CharField(primary_key=True, max_length=100)\n    admin_name = models.CharField(max_length=100)\n    password_hash = models.CharField(max_length=255)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "Admin",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class Admin(models.Model):\n    admin_id = models.CharField(primary_key=True, max_length=100)\n    admin_name = models.CharField(max_length=100)\n    password_hash = models.CharField(max_length=255)\n    created_at = models.DateTimeField(auto_now_add=True)\n    updated_at = models.DateTimeField(auto_now=True)\nclass AdminRole(models.Model):\n    role_id = models.CharField(primary_key=True, max_length=100)\n    role_name = models.CharField(max_length=100)\n    description = models.TextField()",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "AdminRole",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class AdminRole(models.Model):\n    role_id = models.CharField(primary_key=True, max_length=100)\n    role_name = models.CharField(max_length=100)\n    description = models.TextField()\n    access_pages = models.JSONField(default = list)\n    created_at = models.DateTimeField(auto_now_add=True)\n    updated_at = models.DateTimeField(auto_now=True)\nclass AdminRoleMap(models.Model):\n    admin = models.ForeignKey(Admin, on_delete=models.CASCADE)\n    role = models.ForeignKey(AdminRole, on_delete=models.CASCADE)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "AdminRoleMap",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class AdminRoleMap(models.Model):\n    admin = models.ForeignKey(Admin, on_delete=models.CASCADE)\n    role = models.ForeignKey(AdminRole, on_delete=models.CASCADE)\n    created_at = models.DateTimeField(auto_now_add=True)\nclass Image(models.Model):\n    image_id = models.CharField(primary_key=True, max_length=100)\n    image_file = models.ImageField(upload_to='uploads/', null=True, blank=True)\n    alt_text = models.CharField(max_length=255)\n    width = models.IntegerField()\n    height = models.IntegerField()",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "Image",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class Image(models.Model):\n    image_id = models.CharField(primary_key=True, max_length=100)\n    image_file = models.ImageField(upload_to='uploads/', null=True, blank=True)\n    alt_text = models.CharField(max_length=255)\n    width = models.IntegerField()\n    height = models.IntegerField()\n    tags = models.JSONField()\n    image_type = models.CharField(max_length=50)\n    linked_table = models.CharField(max_length=100)\n    linked_id = models.CharField(max_length=100)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "Category",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class Category(models.Model):\n    category_id = models.CharField(primary_key=True, max_length=100)\n    name = models.CharField(max_length=100)\n    status = models.CharField(max_length=20, choices=[(\"hidden\", \"Hidden\"), (\"visible\", \"Visible\")])\n    created_by = models.CharField(max_length=100)\n    created_at = models.DateTimeField(auto_now_add=True)\n    updated_at = models.DateTimeField(auto_now=True)\n    order = models.PositiveIntegerField(default=0) \nclass CategoryImage(models.Model):\n    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name=\"images\")",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "CategoryImage",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class CategoryImage(models.Model):\n    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name=\"images\")\n    image = models.ForeignKey(Image, on_delete=models.CASCADE)\n    created_at = models.DateTimeField(auto_now_add=True)\nclass SubCategory(models.Model):\n    subcategory_id = models.CharField(primary_key=True, max_length=100)\n    name = models.CharField(max_length=100)\n    status = models.CharField(max_length=20, choices=[(\"hidden\", \"Hidden\"), (\"visible\", \"Visible\")])\n    created_by = models.CharField(max_length=100)\n    created_at = models.DateTimeField(auto_now_add=True)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "SubCategory",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class SubCategory(models.Model):\n    subcategory_id = models.CharField(primary_key=True, max_length=100)\n    name = models.CharField(max_length=100)\n    status = models.CharField(max_length=20, choices=[(\"hidden\", \"Hidden\"), (\"visible\", \"Visible\")])\n    created_by = models.CharField(max_length=100)\n    created_at = models.DateTimeField(auto_now_add=True)\n    updated_at = models.DateTimeField(auto_now=True)\n    order = models.PositiveIntegerField(default=0)\nclass SubCategoryImage(models.Model):\n    subcategory = models.ForeignKey(SubCategory, on_delete=models.CASCADE, related_name=\"images\")",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "SubCategoryImage",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class SubCategoryImage(models.Model):\n    subcategory = models.ForeignKey(SubCategory, on_delete=models.CASCADE, related_name=\"images\")\n    image = models.ForeignKey(Image, on_delete=models.CASCADE)\n    created_at = models.DateTimeField(auto_now_add=True)\nclass CategorySubCategoryMap(models.Model):\n    category = models.ForeignKey(Category, on_delete=models.CASCADE)\n    subcategory = models.ForeignKey(SubCategory, on_delete=models.CASCADE)\n# === PRODUCT SYSTEM ===\nclass Product(models.Model):\n    product_id = models.CharField(primary_key=True, max_length=100)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "CategorySubCategoryMap",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class CategorySubCategoryMap(models.Model):\n    category = models.ForeignKey(Category, on_delete=models.CASCADE)\n    subcategory = models.ForeignKey(SubCategory, on_delete=models.CASCADE)\n# === PRODUCT SYSTEM ===\nclass Product(models.Model):\n    product_id = models.CharField(primary_key=True, max_length=100)\n    title = models.CharField(max_length=255)\n    description = models.TextField()\n    brand = models.CharField(max_length=255)\n    price = models.DecimalField(max_digits=10, decimal_places=2)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "Product",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class Product(models.Model):\n    product_id = models.CharField(primary_key=True, max_length=100)\n    title = models.CharField(max_length=255)\n    description = models.TextField()\n    brand = models.CharField(max_length=255)\n    price = models.DecimalField(max_digits=10, decimal_places=2)\n    discounted_price = models.DecimalField(max_digits=10, decimal_places=2)\n    tax_rate = models.FloatField()\n    price_calculator = models.TextField()\n    video_url = models.URLField(blank=True, null=True)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "ProductInventory",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class ProductInventory(models.Model):\n    inventory_id = models.CharField(primary_key=True, max_length=100)\n    product = models.OneToOneField(Product, on_delete=models.CASCADE)\n    stock_quantity = models.IntegerField()\n    low_stock_alert = models.IntegerField()\n    stock_status = models.CharField(max_length=50)\n    created_at = models.DateTimeField(auto_now_add=True)\n    updated_at = models.DateTimeField(auto_now=True)\nclass ProductVariant(models.Model):\n    variant_id = models.CharField(primary_key=True, max_length=100)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "ProductVariant",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class ProductVariant(models.Model):\n    variant_id = models.CharField(primary_key=True, max_length=100)\n    product = models.ForeignKey(Product, on_delete=models.CASCADE)\n    size = models.CharField(max_length=50)\n    color = models.CharField(max_length=50)\n    material_type = models.CharField(max_length=50)\n    fabric_finish = models.CharField(max_length=50)\n    printing_methods = models.JSONField()\n    add_on_options = models.JSONField()\n    created_at = models.DateTimeField(auto_now_add=True)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "VariantCombination",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class VariantCombination(models.Model):\n    combo_id = models.CharField(primary_key=True, max_length=100)\n    variant = models.ForeignKey(ProductVariant, on_delete=models.CASCADE)\n    description = models.TextField()\n    price_override = models.DecimalField(max_digits=10, decimal_places=2)\n    created_at = models.DateTimeField(auto_now_add=True)\nclass ShippingInfo(models.Model):\n    shipping_id = models.CharField(primary_key=True, max_length=100)\n    product = models.OneToOneField(Product, on_delete=models.CASCADE)\n    shipping_class = models.CharField(max_length=100)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "ShippingInfo",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class ShippingInfo(models.Model):\n    shipping_id = models.CharField(primary_key=True, max_length=100)\n    product = models.OneToOneField(Product, on_delete=models.CASCADE)\n    shipping_class = models.CharField(max_length=100)\n    processing_time = models.CharField(max_length=100)\n    entered_by_id = models.CharField(max_length=100)\n    entered_by_type = models.CharField(max_length=10)\n    created_at = models.DateTimeField(auto_now_add=True)\nclass ProductSEO(models.Model):\n    seo_id = models.CharField(primary_key=True, max_length=100)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "ProductSEO",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class ProductSEO(models.Model):\n    seo_id = models.CharField(primary_key=True, max_length=100)\n    product = models.OneToOneField(Product, on_delete=models.CASCADE)\n    image_alt_text = models.CharField(max_length=255)\n    meta_title = models.CharField(max_length=255)\n    meta_description = models.TextField()\n    meta_keywords = models.JSONField(null=False, blank=True, default=list)\n    open_graph_title = models.CharField(max_length=255)\n    open_graph_desc = models.TextField()\n    open_graph_image_url = models.URLField()",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "ProductSubCategoryMap",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class ProductSubCategoryMap(models.Model):\n    product = models.ForeignKey(Product, on_delete=models.CASCADE)\n    subcategory = models.ForeignKey(SubCategory, on_delete=models.CASCADE)\nclass ProductImage(models.Model):\n    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name=\"images\")\n    image = models.ForeignKey(Image, on_delete=models.CASCADE)\n    created_at = models.DateTimeField(auto_now_add=True)\nclass Orders(models.Model):\n    order_id = models.CharField(primary_key=True, max_length=100)\n    user_name = models.CharField(max_length=255, blank = True)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "ProductImage",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class ProductImage(models.Model):\n    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name=\"images\")\n    image = models.ForeignKey(Image, on_delete=models.CASCADE)\n    created_at = models.DateTimeField(auto_now_add=True)\nclass Orders(models.Model):\n    order_id = models.CharField(primary_key=True, max_length=100)\n    user_name = models.CharField(max_length=255, blank = True)\n    order_date = models.DateTimeField()\n    status = models.CharField(max_length=50, choices=[(\"pending\", \"Pending\"), (\"shipped\", \"Shipped\"), (\"completed\", \"Completed\"), (\"cancelled\", \"Cancelled\")])\n    total_price = models.DecimalField(max_digits=10, decimal_places=2)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "Orders",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class Orders(models.Model):\n    order_id = models.CharField(primary_key=True, max_length=100)\n    user_name = models.CharField(max_length=255, blank = True)\n    order_date = models.DateTimeField()\n    status = models.CharField(max_length=50, choices=[(\"pending\", \"Pending\"), (\"shipped\", \"Shipped\"), (\"completed\", \"Completed\"), (\"cancelled\", \"Cancelled\")])\n    total_price = models.DecimalField(max_digits=10, decimal_places=2)\n    notes = models.TextField(blank=True, null=True)\n    created_at = models.DateTimeField(auto_now_add=True)\n    updated_at = models.DateTimeField(auto_now=True)\nclass OrderItem(models.Model):",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "OrderItem",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class OrderItem(models.Model):\n    item_id = models.CharField(primary_key=True, max_length=100)\n    order = models.ForeignKey(Orders, on_delete=models.CASCADE)\n    product = models.ForeignKey(Product, on_delete=models.CASCADE)\n    quantity = models.PositiveIntegerField()\n    unit_price = models.DecimalField(max_digits=10, decimal_places=2)\n    total_price = models.DecimalField(max_digits=10, decimal_places=2)\n    created_at = models.DateTimeField(auto_now_add=True)\nclass OrderDelivery(models.Model):\n    delivery_id = models.CharField(primary_key=True, max_length=100)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "OrderDelivery",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class OrderDelivery(models.Model):\n    delivery_id = models.CharField(primary_key=True, max_length=100)\n    order = models.OneToOneField(Orders, on_delete=models.CASCADE)\n    name = models.CharField(max_length=255)\n    email = models.EmailField()\n    phone = models.CharField(max_length=20)\n    street_address = models.TextField()\n    city = models.CharField(max_length=100)\n    zip_code = models.CharField(max_length=20)\n    instructions = models.JSONField(default=list)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "Cart",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class Cart(models.Model):\n    cart_id = models.CharField(primary_key=True, max_length=100)\n    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)\n    device_uuid = models.CharField(max_length=100, null=True, blank=True, db_index=True)\n    created_at = models.DateTimeField(auto_now_add=True)\n    updated_at = models.DateTimeField(auto_now=True)\nclass CartItem(models.Model):\n    item_id = models.CharField(primary_key=True, max_length=100)\n    cart = models.ForeignKey(Cart, on_delete=models.CASCADE)\n    product = models.ForeignKey(Product, on_delete=models.CASCADE)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "CartItem",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class CartItem(models.Model):\n    item_id = models.CharField(primary_key=True, max_length=100)\n    cart = models.ForeignKey(Cart, on_delete=models.CASCADE)\n    product = models.ForeignKey(Product, on_delete=models.CASCADE)\n    quantity = models.PositiveIntegerField()\n    price_per_unit = models.DecimalField(max_digits=10, decimal_places=2)\n    subtotal = models.DecimalField(max_digits=10, decimal_places=2)\n    selected_size = models.CharField(max_length=50, blank=True, null=True)\nclass Blog(models.Model):\n    blog_id = models.CharField(primary_key=True, max_length=100)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "Blog",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class Blog(models.Model):\n    blog_id = models.CharField(primary_key=True, max_length=100)\n    title = models.CharField(max_length=255)\n    content = models.TextField()  # Rich text or HTML stored\n    blog_image = models.URLField()\n    schedule_date = models.DateTimeField()\n    status = models.CharField(max_length=20, choices=[(\"draft\", \"Draft\"), (\"published\", \"Published\")])\n    author_id = models.CharField(max_length=100)\n    author_type = models.CharField(max_length=10, choices=[(\"admin\", \"Admin\"), (\"user\", \"User\")])\n    created_at = models.DateTimeField(auto_now_add=True)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "BlogCategory",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class BlogCategory(models.Model):\n    category_id = models.CharField(primary_key=True, max_length=100)\n    name = models.CharField(max_length=100)\n    created_at = models.DateTimeField(auto_now_add=True)\nclass BlogCategoryMap(models.Model):\n    blog = models.ForeignKey(Blog, on_delete=models.CASCADE)\n    category = models.ForeignKey(BlogCategory, on_delete=models.CASCADE)\nclass BlogSEO(models.Model):\n    blog = models.OneToOneField(Blog, on_delete=models.CASCADE, related_name='seo')\n    meta_title = models.CharField(max_length=255, blank=True)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "BlogCategoryMap",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class BlogCategoryMap(models.Model):\n    blog = models.ForeignKey(Blog, on_delete=models.CASCADE)\n    category = models.ForeignKey(BlogCategory, on_delete=models.CASCADE)\nclass BlogSEO(models.Model):\n    blog = models.OneToOneField(Blog, on_delete=models.CASCADE, related_name='seo')\n    meta_title = models.CharField(max_length=255, blank=True)\n    meta_description = models.TextField(blank=True)\n    og_title = models.CharField(max_length=255, blank=True)\n    og_image = models.URLField(blank=True)\n    tags = models.CharField(max_length=255, blank=True)  # Comma-separated tags",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "BlogSEO",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class BlogSEO(models.Model):\n    blog = models.OneToOneField(Blog, on_delete=models.CASCADE, related_name='seo')\n    meta_title = models.CharField(max_length=255, blank=True)\n    meta_description = models.TextField(blank=True)\n    og_title = models.CharField(max_length=255, blank=True)\n    og_image = models.URLField(blank=True)\n    tags = models.CharField(max_length=255, blank=True)  # Comma-separated tags\n    schema_enabled = models.BooleanField(default=False)\n    def __str__(self):\n        return f\"SEO for {self.blog.title}\"",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "Notification",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class Notification(models.Model):\n    notification_id = models.CharField(primary_key=True, max_length=100)\n    type = models.CharField(max_length=100)\n    title = models.CharField(max_length=255)\n    message = models.TextField()\n    recipient_id = models.CharField(max_length=100)\n    recipient_type = models.CharField(max_length=10, choices=[(\"user\", \"User\"), (\"admin\", \"Admin\")])\n    source_table = models.CharField(max_length=100)\n    source_id = models.CharField(max_length=100)\n    status = models.CharField(max_length=20, choices=[(\"unread\", \"Unread\"), (\"read\", \"Read\")])",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "CallbackRequest",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class CallbackRequest(models.Model):\n    callback_id = models.CharField(primary_key=True, max_length=100)\n    sender_id = models.CharField(max_length=100)\n    contact_info = models.CharField(max_length=255)\n    message = models.TextField()\n    created_at = models.DateTimeField(auto_now_add=True)\nclass HeroBanner(models.Model):\n    hero_id = models.CharField(primary_key=True, max_length=100)\n    alt_text = models.CharField(max_length=255)\n    created_at = models.DateTimeField(auto_now_add=True)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "HeroBanner",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class HeroBanner(models.Model):\n    hero_id = models.CharField(primary_key=True, max_length=100)\n    alt_text = models.CharField(max_length=255)\n    created_at = models.DateTimeField(auto_now_add=True)\nclass HeroBannerImage(models.Model):\n    banner = models.ForeignKey(HeroBanner, on_delete=models.CASCADE, related_name=\"images\")\n    image = models.ForeignKey(Image, on_delete=models.CASCADE)\n    device_type = models.CharField(max_length=20, choices=[('desktop', 'Desktop'), ('mobile', 'Mobile')])\n    order = models.PositiveIntegerField(default=0)  # for slideshow sequencing\n    created_at = models.DateTimeField(auto_now_add=True)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "HeroBannerImage",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class HeroBannerImage(models.Model):\n    banner = models.ForeignKey(HeroBanner, on_delete=models.CASCADE, related_name=\"images\")\n    image = models.ForeignKey(Image, on_delete=models.CASCADE)\n    device_type = models.CharField(max_length=20, choices=[('desktop', 'Desktop'), ('mobile', 'Mobile')])\n    order = models.PositiveIntegerField(default=0)  # for slideshow sequencing\n    created_at = models.DateTimeField(auto_now_add=True)\nclass DeletedItemsCache(models.Model):\n    cache_id = models.CharField(primary_key=True, max_length=100)\n    table_name = models.CharField(max_length=100)\n    record_data = models.JSONField()",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "DeletedItemsCache",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class DeletedItemsCache(models.Model):\n    cache_id = models.CharField(primary_key=True, max_length=100)\n    table_name = models.CharField(max_length=100)\n    record_data = models.JSONField()\n    deleted_at = models.DateTimeField()\n    deleted_reason = models.TextField()\n    restored = models.BooleanField(default=False)\n    restored_at = models.DateTimeField(null=True, blank=True)\nclass SiteSettings(models.Model):\n    setting_id = models.CharField(primary_key=True, max_length=100)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "SiteSettings",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class SiteSettings(models.Model):\n    setting_id = models.CharField(primary_key=True, max_length=100)\n    site_title = models.CharField(max_length=100)\n    logo_url = models.URLField()\n    language = models.CharField(max_length=20)\n    currency = models.CharField(max_length=10)\n    timezone = models.CharField(max_length=50)\n    tax_rate = models.FloatField()\n    payment_modes = models.JSONField()\n    shipping_zones = models.JSONField()",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "DashboardSnapshot",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class DashboardSnapshot(models.Model):\n    dashboard_id = models.CharField(primary_key=True, max_length=100)\n    snapshot_type = models.CharField(\n        max_length=50, \n        choices=[\n            (\"daily\", \"Daily\"), \n            (\"weekly\", \"Weekly\"), \n            (\"monthly\", \"Monthly\"), \n            (\"yearly\", \"Yearly\")\n        ]",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "FirstCarousel",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class FirstCarousel(models.Model):\n    title = models.CharField(max_length=255)\n    description = models.TextField()\n    def __str__(self):\n        return self.title\nclass SecondCarousel(models.Model):\n    title = models.CharField(max_length=255)\n    description = models.TextField()\nclass FirstCarouselImage(models.Model):\n    carousel = models.ForeignKey(FirstCarousel, on_delete=models.CASCADE, related_name=\"images\")",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "SecondCarousel",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class SecondCarousel(models.Model):\n    title = models.CharField(max_length=255)\n    description = models.TextField()\nclass FirstCarouselImage(models.Model):\n    carousel = models.ForeignKey(FirstCarousel, on_delete=models.CASCADE, related_name=\"images\")\n    image = models.ForeignKey('Image', on_delete=models.CASCADE)\n    title = models.CharField(max_length=255, default=\"\", blank=True)\n    caption = models.CharField(max_length=255, default=\"\", blank=True)\n    order = models.PositiveIntegerField(default=0)\n    created_at = models.DateTimeField(auto_now_add=True)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "FirstCarouselImage",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class FirstCarouselImage(models.Model):\n    carousel = models.ForeignKey(FirstCarousel, on_delete=models.CASCADE, related_name=\"images\")\n    image = models.ForeignKey('Image', on_delete=models.CASCADE)\n    title = models.CharField(max_length=255, default=\"\", blank=True)\n    caption = models.CharField(max_length=255, default=\"\", blank=True)\n    order = models.PositiveIntegerField(default=0)\n    created_at = models.DateTimeField(auto_now_add=True)\nclass SecondCarouselImage(models.Model):\n    carousel = models.ForeignKey(SecondCarousel, on_delete=models.CASCADE, related_name=\"images\")\n    image = models.ForeignKey('Image', on_delete=models.CASCADE)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "SecondCarouselImage",
+        "kind": 6,
+        "importPath": "admin_backend_final.models",
+        "description": "admin_backend_final.models",
+        "peekOfCode": "class SecondCarouselImage(models.Model):\n    carousel = models.ForeignKey(SecondCarousel, on_delete=models.CASCADE, related_name=\"images\")\n    image = models.ForeignKey('Image', on_delete=models.CASCADE)\n    title = models.CharField(max_length=255, default=\"\", blank=True)\n    caption = models.CharField(max_length=255, default=\"\", blank=True)\n    order = models.PositiveIntegerField(default=0)\n    created_at = models.DateTimeField(auto_now_add=True)",
+        "detail": "admin_backend_final.models",
+        "documentation": {}
+    },
+    {
+        "label": "NotificationSerializer",
+        "kind": 6,
+        "importPath": "admin_backend_final.serializers",
+        "description": "admin_backend_final.serializers",
+        "peekOfCode": "class NotificationSerializer(serializers.ModelSerializer):\n    class Meta:\n        model = Notification\n        fields = '__all__'",
+        "detail": "admin_backend_final.serializers",
+        "documentation": {}
+    },
+    {
+        "label": "create_admin_notification",
+        "kind": 2,
+        "importPath": "admin_backend_final.signals",
+        "description": "admin_backend_final.signals",
+        "peekOfCode": "def create_admin_notification(message, source_table, source_id):\n    Notification.objects.create(\n        notification_id=str(uuid.uuid4()),\n        type=\"admin_model_change\",\n        title=\"Admin Change Detected\",\n        message=message,\n        recipient_id=\"superadmin\",  # or dynamic logic later\n        recipient_type=\"admin\",\n        source_table=source_table,\n        source_id=source_id,",
+        "detail": "admin_backend_final.signals",
+        "documentation": {}
+    },
+    {
+        "label": "notify_product_created_or_updated",
+        "kind": 2,
+        "importPath": "admin_backend_final.signals",
+        "description": "admin_backend_final.signals",
+        "peekOfCode": "def notify_product_created_or_updated(sender, instance, created, **kwargs):\n    action = \"created\" if created else \"updated\"\n    message = f\"Product '{instance.title}' was {action}.\"\n    create_admin_notification(message, \"Product\", instance.product_id)\n@receiver(post_delete, sender=Product)\ndef notify_product_deleted(sender, instance, **kwargs):\n    message = f\"Product '{instance.title}' was deleted.\"\n    create_admin_notification(message, \"Product\", instance.product_id)\n@receiver(post_save, sender=Admin)\ndef notify_admin_created_or_updated(sender, instance, created, **kwargs):",
+        "detail": "admin_backend_final.signals",
+        "documentation": {}
+    },
+    {
+        "label": "notify_product_deleted",
+        "kind": 2,
+        "importPath": "admin_backend_final.signals",
+        "description": "admin_backend_final.signals",
+        "peekOfCode": "def notify_product_deleted(sender, instance, **kwargs):\n    message = f\"Product '{instance.title}' was deleted.\"\n    create_admin_notification(message, \"Product\", instance.product_id)\n@receiver(post_save, sender=Admin)\ndef notify_admin_created_or_updated(sender, instance, created, **kwargs):\n    print(\"SIGNAL TRIGGERED: Admin created or updated\")  # <--- Add this\n    action = \"created\" if created else \"updated\"\n    message = f\"Admin '{instance.admin_name}' was {action}.\"\n    create_admin_notification(message, \"Admin\", instance.admin_id)\n@receiver(post_delete, sender=Admin)",
+        "detail": "admin_backend_final.signals",
+        "documentation": {}
+    },
+    {
+        "label": "notify_admin_created_or_updated",
+        "kind": 2,
+        "importPath": "admin_backend_final.signals",
+        "description": "admin_backend_final.signals",
+        "peekOfCode": "def notify_admin_created_or_updated(sender, instance, created, **kwargs):\n    print(\"SIGNAL TRIGGERED: Admin created or updated\")  # <--- Add this\n    action = \"created\" if created else \"updated\"\n    message = f\"Admin '{instance.admin_name}' was {action}.\"\n    create_admin_notification(message, \"Admin\", instance.admin_id)\n@receiver(post_delete, sender=Admin)\ndef notify_admin_deleted(sender, instance, **kwargs):\n    message = f\"Admin '{instance.admin_name}' was deleted.\"\n    create_admin_notification(message, \"Admin\", instance.admin_id)\n@receiver(post_save, sender=DashboardSnapshot)",
+        "detail": "admin_backend_final.signals",
+        "documentation": {}
+    },
+    {
+        "label": "notify_admin_deleted",
+        "kind": 2,
+        "importPath": "admin_backend_final.signals",
+        "description": "admin_backend_final.signals",
+        "peekOfCode": "def notify_admin_deleted(sender, instance, **kwargs):\n    message = f\"Admin '{instance.admin_name}' was deleted.\"\n    create_admin_notification(message, \"Admin\", instance.admin_id)\n@receiver(post_save, sender=DashboardSnapshot)\ndef notify_snapshot_created(sender, instance, created, **kwargs):\n    if created:\n        message = f\"Dashboard snapshot ({instance.snapshot_type}) was created by Admin ID {instance.created_by.admin_id}.\"\n        create_admin_notification(message, \"DashboardSnapshot\", instance.dashboard_id)\n@receiver(post_save, sender=SiteSettings)\ndef notify_site_settings_updated(sender, instance, **kwargs):",
+        "detail": "admin_backend_final.signals",
+        "documentation": {}
+    },
+    {
+        "label": "notify_snapshot_created",
+        "kind": 2,
+        "importPath": "admin_backend_final.signals",
+        "description": "admin_backend_final.signals",
+        "peekOfCode": "def notify_snapshot_created(sender, instance, created, **kwargs):\n    if created:\n        message = f\"Dashboard snapshot ({instance.snapshot_type}) was created by Admin ID {instance.created_by.admin_id}.\"\n        create_admin_notification(message, \"DashboardSnapshot\", instance.dashboard_id)\n@receiver(post_save, sender=SiteSettings)\ndef notify_site_settings_updated(sender, instance, **kwargs):\n    message = \"Site settings were updated.\"\n    create_admin_notification(message, \"SiteSettings\", instance.setting_id)\n@receiver(user_logged_in)\ndef notify_on_login(sender, request, user, **kwargs):",
+        "detail": "admin_backend_final.signals",
+        "documentation": {}
+    },
+    {
+        "label": "notify_site_settings_updated",
+        "kind": 2,
+        "importPath": "admin_backend_final.signals",
+        "description": "admin_backend_final.signals",
+        "peekOfCode": "def notify_site_settings_updated(sender, instance, **kwargs):\n    message = \"Site settings were updated.\"\n    create_admin_notification(message, \"SiteSettings\", instance.setting_id)\n@receiver(user_logged_in)\ndef notify_on_login(sender, request, user, **kwargs):\n    from .models import Notification\n    import uuid\n    from django.utils.timezone import now\n    Notification.objects.create(\n        notification_id=str(uuid.uuid4()),",
+        "detail": "admin_backend_final.signals",
+        "documentation": {}
+    },
+    {
+        "label": "notify_on_login",
+        "kind": 2,
+        "importPath": "admin_backend_final.signals",
+        "description": "admin_backend_final.signals",
+        "peekOfCode": "def notify_on_login(sender, request, user, **kwargs):\n    from .models import Notification\n    import uuid\n    from django.utils.timezone import now\n    Notification.objects.create(\n        notification_id=str(uuid.uuid4()),\n        type=\"login\",\n        title=\"Admin Logged In\",\n        message=f\"{user.username} just logged in.\",\n        recipient_id=\"superadmin\",",
+        "detail": "admin_backend_final.signals",
+        "documentation": {}
+    },
+    {
+        "label": "notify_order_created_or_updated",
+        "kind": 2,
+        "importPath": "admin_backend_final.signals",
+        "description": "admin_backend_final.signals",
+        "peekOfCode": "def notify_order_created_or_updated(sender, instance, created, **kwargs):\n    if created:\n        message = f\"New order '{instance.order_id}' was placed.\"\n    else:\n        message = f\"Order '{instance.order_id}' status changed to '{instance.status}'.\"\n    create_admin_notification(message, \"Orders\", instance.order_id)\n@receiver(post_save, sender=Blog)\ndef notify_blog_created_or_updated(sender, instance, created, **kwargs):\n    action = \"published\" if instance.status == \"published\" else \"saved as draft\"\n    message = f\"Blog '{instance.title}' was {action}.\"",
+        "detail": "admin_backend_final.signals",
+        "documentation": {}
+    },
+    {
+        "label": "notify_blog_created_or_updated",
+        "kind": 2,
+        "importPath": "admin_backend_final.signals",
+        "description": "admin_backend_final.signals",
+        "peekOfCode": "def notify_blog_created_or_updated(sender, instance, created, **kwargs):\n    action = \"published\" if instance.status == \"published\" else \"saved as draft\"\n    message = f\"Blog '{instance.title}' was {action}.\"\n    create_admin_notification(message, \"Blog\", instance.blog_id)\n@receiver(post_save, sender=Category)\ndef notify_category_created_or_updated(sender, instance, created, **kwargs):\n    action = \"created\" if created else \"updated\"\n    message = f\"Category '{instance.name}' was {action}.\"\n    create_admin_notification(message, \"Category\", instance.category_id)\n@receiver(post_save, sender=SubCategory)",
+        "detail": "admin_backend_final.signals",
+        "documentation": {}
+    },
+    {
+        "label": "notify_category_created_or_updated",
+        "kind": 2,
+        "importPath": "admin_backend_final.signals",
+        "description": "admin_backend_final.signals",
+        "peekOfCode": "def notify_category_created_or_updated(sender, instance, created, **kwargs):\n    action = \"created\" if created else \"updated\"\n    message = f\"Category '{instance.name}' was {action}.\"\n    create_admin_notification(message, \"Category\", instance.category_id)\n@receiver(post_save, sender=SubCategory)\ndef notify_subcategory_created_or_updated(sender, instance, created, **kwargs):\n    action = \"created\" if created else \"updated\"\n    message = f\"Subcategory '{instance.name}' was {action}.\"\n    create_admin_notification(message, \"SubCategory\", instance.subcategory_id)\n@receiver(user_logged_in)",
+        "detail": "admin_backend_final.signals",
+        "documentation": {}
+    },
+    {
+        "label": "notify_subcategory_created_or_updated",
+        "kind": 2,
+        "importPath": "admin_backend_final.signals",
+        "description": "admin_backend_final.signals",
+        "peekOfCode": "def notify_subcategory_created_or_updated(sender, instance, created, **kwargs):\n    action = \"created\" if created else \"updated\"\n    message = f\"Subcategory '{instance.name}' was {action}.\"\n    create_admin_notification(message, \"SubCategory\", instance.subcategory_id)\n@receiver(user_logged_in)\ndef notify_user_login(sender, request, user, **kwargs):\n    from .models import Notification\n    if hasattr(user, 'user_id'):  # if it's a normal user\n        user_type = 'user'\n        user_identifier = user.user_id",
+        "detail": "admin_backend_final.signals",
+        "documentation": {}
+    },
+    {
+        "label": "notify_user_login",
+        "kind": 2,
+        "importPath": "admin_backend_final.signals",
+        "description": "admin_backend_final.signals",
+        "peekOfCode": "def notify_user_login(sender, request, user, **kwargs):\n    from .models import Notification\n    if hasattr(user, 'user_id'):  # if it's a normal user\n        user_type = 'user'\n        user_identifier = user.user_id\n        username = user.username\n    elif hasattr(user, 'admin_id'):\n        user_type = 'admin'\n        user_identifier = user.admin_id\n        username = user.admin_name",
+        "detail": "admin_backend_final.signals",
+        "documentation": {}
+    },
+    {
+        "label": "notify_logout",
+        "kind": 2,
+        "importPath": "admin_backend_final.signals",
+        "description": "admin_backend_final.signals",
+        "peekOfCode": "def notify_logout(sender, request, user, **kwargs):\n    Notification.objects.create(\n        notification_id=str(uuid.uuid4()),\n        type=\"logout\",\n        title=\"Logout Detected\",\n        message=f\"{user.username} logged out.\",\n        recipient_id=\"superadmin\",\n        recipient_type=\"admin\",\n        source_table=\"User\",\n        source_id=getattr(user, 'user_id', 'unknown'),",
+        "detail": "admin_backend_final.signals",
+        "documentation": {}
+    },
+    {
+        "label": "urlpatterns",
+        "kind": 5,
+        "importPath": "admin_backend_final.urls",
+        "description": "admin_backend_final.urls",
+        "peekOfCode": "urlpatterns = [\n    path('save-image', views.save_image, name='save_image'),\n    path(\"save-categories/\", views.save_category, name = 'save_categories'),\n    path(\"save-subcategories/\", views.save_subcategory, name = 'save_subcategories'),\n    path(\"edit-categories/\", views.edit_category, name = 'edit_categories'),\n    path(\"edit-subcategories/\", views.edit_subcategory, name = 'edit_subcategories'), \n    path(\"delete-categories/\", views.delete_category, name = 'delete_categories'),\n    path('update-category-order/', views.update_category_order, name='update_category_order'),\n    path(\"delete-subcategories/\", views.delete_subcategory, name = 'delete_subcategories'),\n    path(\"show-categories/\", views.show_category, name = 'show_categories'),",
+        "detail": "admin_backend_final.urls",
+        "documentation": {}
+    },
+    {
+        "label": "format_datetime",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def format_datetime(dt):\n    return dt.strftime('%d-%B-%Y-%I:%M%p')\ndef format_slug(name):\n    return slugify(name)  \ndef generate_category_id(name):\n    base = ''.join(word[0].upper() for word in name.split())\n    similar = Category.objects.filter(category_id__startswith=base).count()\n    return f\"{base}-{similar + 1}\"\ndef generate_subcategory_id(name, category_ids):\n    # Extract base name",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "format_slug",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def format_slug(name):\n    return slugify(name)  \ndef generate_category_id(name):\n    base = ''.join(word[0].upper() for word in name.split())\n    similar = Category.objects.filter(category_id__startswith=base).count()\n    return f\"{base}-{similar + 1}\"\ndef generate_subcategory_id(name, category_ids):\n    # Extract base name\n    base = name.split()[0].upper()\n    # Extract category prefix (e.g., from \"CAT-01\" -> \"CAT\")",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "generate_category_id",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def generate_category_id(name):\n    base = ''.join(word[0].upper() for word in name.split())\n    similar = Category.objects.filter(category_id__startswith=base).count()\n    return f\"{base}-{similar + 1}\"\ndef generate_subcategory_id(name, category_ids):\n    # Extract base name\n    base = name.split()[0].upper()\n    # Extract category prefix (e.g., from \"CAT-01\" -> \"CAT\")\n    category_code = category_ids[0].split('-')[0] if category_ids else \"GEN\"\n    # Build the ID prefix to search",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "generate_subcategory_id",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def generate_subcategory_id(name, category_ids):\n    # Extract base name\n    base = name.split()[0].upper()\n    # Extract category prefix (e.g., from \"CAT-01\" -> \"CAT\")\n    category_code = category_ids[0].split('-')[0] if category_ids else \"GEN\"\n    # Build the ID prefix to search\n    id_prefix = f\"{category_code}-{base}-\"\n    # Find the highest existing number for this prefix\n    existing_ids = SubCategory.objects.filter(subcategory_id__startswith=id_prefix).values_list('subcategory_id', flat=True)\n    max_number = 0",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "generate_product_id",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def generate_product_id(name, subcat_id):\n    fallback_subcat_prefix = subcat_id[0].upper() if subcat_id else 'X'\n    if '-' in subcat_id:\n        parts = subcat_id.split('-', 1)\n        after_hyphen = parts[1]\n        segment = after_hyphen.split('-')[0].upper()\n        subcat_prefix = segment[:2] if len(segment) >= 1 else fallback_subcat_prefix\n    else:\n        subcat_prefix = fallback_subcat_prefix\n    first_letters = ''.join(word[0].upper() for word in re.findall(r'\\b\\w', name))",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "generate_product_id_view",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def generate_product_id_view(request):\n    if request.method == 'POST':\n        data = json.loads(request.body)\n        name = data.get('name')\n        subcat_id = data.get('subcategory_id')\n        if not name or not subcat_id:\n            return JsonResponse({'error': 'Missing name or subcategory_id'}, status=400)\n        try:\n            product_id = generate_product_id(name, subcat_id)\n        except ValueError as e:",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "generate_inventory_id",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def generate_inventory_id(product_id):\n    return f\"INV-{product_id}\"\ndef generate_unique_slug(base_slug, instance=None):\n    slug = base_slug\n    counter = 1\n    while ProductSEO.objects.filter(slug=slug).exclude(product=instance).exists():\n        slug = f\"{base_slug}-{counter}\"\n        counter += 1\n    return slug\ndef generate_unique_seo_id(base_id):",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "generate_unique_slug",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def generate_unique_slug(base_slug, instance=None):\n    slug = base_slug\n    counter = 1\n    while ProductSEO.objects.filter(slug=slug).exclude(product=instance).exists():\n        slug = f\"{base_slug}-{counter}\"\n        counter += 1\n    return slug\ndef generate_unique_seo_id(base_id):\n    count = 1\n    new_id = base_id",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "generate_unique_seo_id",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def generate_unique_seo_id(base_id):\n    count = 1\n    new_id = base_id\n    while ProductSEO.objects.filter(seo_id=new_id).exists():\n        new_id = f\"{base_id}-{count}\"\n        count += 1\n    return new_id\ndef generate_custom_order_id(user_name, email):\n    prefix = 'O'\n    uname = user_name[:2].upper() if user_name else \"GU\"",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "generate_custom_order_id",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def generate_custom_order_id(user_name, email):\n    prefix = 'O'\n    uname = user_name[:2].upper() if user_name else \"GU\"\n    email_part = email[:2].upper() if email else \"EM\"\n    base_id = f\"{prefix}{uname}-{email_part}-\"\n    # Check how many existing orders match the pattern\n    existing_ids = Orders.objects.filter(order_id__startswith=f\"{base_id}\").values_list('order_id', flat=True)\n    existing_suffixes = [\n        int(order_id.split(\"-\")[-1]) for order_id in existing_ids\n        if order_id.split(\"-\")[-1].isdigit()",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "generate_admin_id",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def generate_admin_id(name: str, role_name: str, attempt=1) -> str:\n    first_name = name.split()[0]\n    last_name = name.split()[-1]\n    prefix = f\"A{first_name[0]}{last_name[-2:]}\".upper()\n    role_prefix = role_name[:2].upper()\n    base_id = f\"{prefix}-{role_prefix}\"\n    # Count matching admin_ids\n    existing_ids = Admin.objects.filter(admin_id__startswith=base_id).values_list('admin_id', flat=True)\n    # Extract numeric suffixes and calculate next\n    used_numbers = set()",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "save_image",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def save_image(file_or_base64, alt_text=\"Alt-text\", tags=\"\", linked_table=\"\", linked_page=\"\", linked_id=\"\"):\n    try:\n        if isinstance(file_or_base64, str) and file_or_base64.startswith(\"data:image/\"):\n            header, encoded = file_or_base64.split(\",\", 1)\n            file_ext = header.split('/')[1].split(';')[0]\n            image_data = base64.b64decode(encoded)\n            image = PILImage.open(BytesIO(image_data))\n            width, height = image.size\n            filename = f\"{uuid.uuid4()}.{file_ext}\"\n            content_file = ContentFile(image_data, name=filename)",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "save_category",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def save_category(request):\n    if request.method == 'POST':\n        data = request.POST\n        name = data.get('name')\n        if Category.objects.filter(name=name).exists():\n            Category.objects.get(name=name).delete()\n        category_id = generate_category_id(name)\n        now = timezone.now()\n        order = Category.objects.count() + 1\n        category = Category.objects.create(",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_category",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_category(request):\n    categories = Category.objects.all().order_by('order')\n    result = []\n    for cat in categories:\n        subcat_maps = CategorySubCategoryMap.objects.filter(category=cat)\n        subcat_ids = [map.subcategory for map in subcat_maps]\n        subcat_names = [s.name for s in subcat_ids]\n        product_count = ProductSubCategoryMap.objects.filter(subcategory__in=subcat_ids).count()\n        result.append({\n            \"id\": cat.category_id,",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "edit_category",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def edit_category(request):\n    if request.method == 'POST':\n        data = request.POST\n        category_id = data.get('category_id')\n        try:\n            category = Category.objects.get(category_id=category_id)\n        except Category.DoesNotExist:\n            return JsonResponse({'error': 'Category not found'}, status=404)\n        new_name = data.get('name')\n        if new_name:",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "delete_category",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def delete_category(request):\n    if request.method == 'POST':\n        data = json.loads(request.body)\n        category_ids = data.get('ids', [])\n        confirm = data.get('confirm', False)\n        if not category_ids:\n            return JsonResponse({'error': 'No category IDs provided'}, status=400)\n        for category_id in category_ids:\n            try:\n                category = Category.objects.get(category_id=category_id)",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "update_category_order",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def update_category_order(request):\n    if request.method == 'POST':\n        try:\n            data = json.loads(request.body)\n            ordered = data.get(\"ordered_categories\", [])\n            for item in ordered:\n                Category.objects.filter(category_id=item[\"id\"]).update(order=item[\"order\"])\n            return JsonResponse({'success': True})\n        except Exception as e:\n            return JsonResponse({'success': False, 'error': str(e)}, status=500)",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "save_subcategory",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def save_subcategory(request):\n    if request.method == 'POST':\n        data = request.POST\n        name = data.get('name')\n        category_ids = data.getlist('category_ids')\n        if not name or not category_ids:\n            return JsonResponse({'error': 'Name and category_ids are required'}, status=400)\n        categories = Category.objects.filter(category_id__in=category_ids)\n        if not categories.exists():\n            return JsonResponse({'error': 'One or more category IDs not found'}, status=400)",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_subcategory",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_subcategory(request):\n    subcategories = SubCategory.objects.all().order_by(\"order\")\n    result = []\n    for sub in subcategories:\n        category_maps = CategorySubCategoryMap.objects.filter(subcategory=sub)\n        category_names = [m.category.name for m in category_maps]\n        product_count = ProductSubCategoryMap.objects.filter(subcategory=sub).count()\n        result.append({\n            \"id\": sub.subcategory_id,\n            \"name\": sub.name,",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "edit_subcategory",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def edit_subcategory(request):\n    if request.method == 'POST':\n        data = request.POST\n        subcategory_id = data.get('subcategory_id')\n        try:\n            subcategory = SubCategory.objects.get(subcategory_id=subcategory_id)\n        except SubCategory.DoesNotExist:\n            return JsonResponse({'error': 'SubCategory not found'}, status=404)\n        new_name = data.get('name')\n        if new_name:",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "delete_subcategory",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def delete_subcategory(request):\n    if request.method == 'POST':\n        data = json.loads(request.body)\n        subcategory_ids = data.get('ids', [])\n        confirm = data.get('confirm', False)\n        if not subcategory_ids:\n            return JsonResponse({'error': 'No subcategory IDs provided'}, status=400)\n        try:\n            for sub_id in set(subcategory_ids):  # de-duplicate IDs\n                print(f\"Processing subcategory_id: {sub_id}\")",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "update_subcategory_order",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def update_subcategory_order(request):\n    if request.method == 'POST':\n        try:\n            data = json.loads(request.body)\n            ordered = data.get(\"ordered_subcategories\", [])\n            for item in ordered:\n                SubCategory.objects.filter(subcategory_id=item[\"id\"]).update(order=item[\"order\"])\n            return JsonResponse({'success': True})\n        except Exception as e:\n            return JsonResponse({'success': False, 'error': str(e)}, status=500)",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "update_hidden_status",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def update_hidden_status(request):\n    if request.method == 'POST':\n        try:\n            data = json.loads(request.body)\n            item_type = data.get('type') \n            ids = data.get('ids', [])    \n            new_status = data.get('status', 'visible')\n            if not ids or not isinstance(ids, list):\n                return JsonResponse({'error': 'No valid IDs provided'}, status=400)\n            if item_type == 'categories':",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "save_product",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def save_product(request):\n    if request.method != 'POST':\n        return JsonResponse({'error': 'Invalid request method'}, status=400)\n    try:\n        data = json.loads(request.body)\n        product = save_product_basic(data)\n        save_product_seo(data, product)\n        save_shipping_info(data, product)\n        save_product_variants(data, product)\n        save_product_subcategories(data, product)",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "save_product_basic",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def save_product_basic(data, is_edit=False, existing_product=None):\n    name = data.get('name')\n    brand = data.get('brand_title', '')\n    price = float(data.get('price', 0))\n    discounted_price = float(data.get('discounted_price', 0))\n    tax_rate = float(data.get('tax_rate', 0))\n    price_calculator = data.get('price_calculator', '')\n    video_url = data.get('video_url', '')\n    description = data.get('description', '')\n    status = data.get('status', 'active')",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "save_product_seo",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def save_product_seo(data, product):\n    base_seo_id = f\"SEO-{product.product_id}\"\n    unique_seo_id = generate_unique_seo_id(base_seo_id)\n    seo, created = ProductSEO.objects.get_or_create(\n        product=product,\n        defaults={\n            \"seo_id\": unique_seo_id,\n            \"meta_keywords\": [],\n            \"slug\": slugify(product.title),\n            \"created_at\": timezone.now(),",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "save_shipping_info",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def save_shipping_info(data, product):\n    shipping = ShippingInfo.objects.filter(product=product).first()\n    if not shipping:\n        shipping = ShippingInfo(\n            shipping_id=f\"SHIP-{product.product_id}\",\n            product=product,\n            entered_by_id='SuperAdmin',\n            entered_by_type='admin',\n            created_at=timezone.now()\n        )",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "save_product_variants",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def save_product_variants(data, product):\n    ProductVariant.objects.filter(product=product).delete()\n    sizes = data.get(\"size\", [])\n    colors = data.get(\"colorVariants\", [])\n    materials = data.get(\"materialType\", [])\n    printing_methods = data.get(\"printing_method\", \"\")\n    add_ons = data.get(\"addOnOptions\", [])\n    fabric_finish = data.get(\"fabric_finish\", \"\")\n    combinations = data.get(\"variant_combinations\", \"\")\n    # Create one combined variant",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "save_product_subcategories",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def save_product_subcategories(data, product):\n    subcategory_ids = data.get('subcategory_ids', [])\n    ProductSubCategoryMap.objects.filter(product=product).delete()\n    for sub_id in subcategory_ids:\n        try:\n            sub = SubCategory.objects.get(subcategory_id=sub_id)\n            ProductSubCategoryMap.objects.create(product=product, subcategory=sub)\n        except SubCategory.DoesNotExist:\n            print(\"Subcategory not found:\", sub_id)\ndef save_product_images(data, product):",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "save_product_images",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def save_product_images(data, product):\n    image_data_list = data.get('images', [])\n    # Delete existing images mapped to this product\n    ProductImage.objects.filter(product=product).delete()\n    Image.objects.filter(linked_table='product', linked_id=product.product_id).delete()\n    for img_data in image_data_list:\n        try:\n            image = save_image(\n                img_data,\n                alt_text=data.get('image_alt_text', 'Product image'),",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "delete_product",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def delete_product(request):\n    if request.method != 'DELETE':\n        return JsonResponse({'error': 'Invalid request method'}, status=400)\n    try:\n        data = json.loads(request.body)\n        ids = data.get('ids', [])\n        confirm = data.get('confirm', False)\n        if not ids:\n            return JsonResponse({'error': 'No product IDs provided'}, status=400)\n        for pid in ids:",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_products",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_products(request):\n    products = Product.objects.all().order_by('order')\n    product_list = []\n    for product in products:\n        # Get first image for product (if any)\n        image_obj = ProductImage.objects.filter(product=product).select_related('image').first()\n        image_url = (\n            f\"http://127.0.0.1:8000{image_obj.image.url}\"\n            if image_obj and image_obj.image and image_obj.image.url else \"\"\n        )",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "update_stock_status",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def update_stock_status(inventory):\n    quantity = inventory.stock_quantity\n    low_stock = inventory.low_stock_alert\n    if quantity == 0:\n        inventory.stock_status = 'Out Of Stock'\n    elif quantity <= low_stock:\n        inventory.stock_status = 'Low Stock'\n    else:\n        inventory.stock_status = 'In Stock'\n    inventory.updated_at = timezone.now()",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_specific_product",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_specific_product(request):\n    try:\n        data = json.loads(request.body)\n        product_id = data.get('product_id')\n        if not product_id:\n            return JsonResponse({\"error\": \"Missing product_id\"}, status=400)\n        product = Product.objects.get(product_id=product_id)\n    except Product.DoesNotExist:\n        return JsonResponse({\"error\": \"Product not found\"}, status=404)\n    except Exception as e:",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_product_variant",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_product_variant(request):\n    try:\n        data = json.loads(request.body)\n        product_id = data.get('product_id')\n        if not product_id:\n            return JsonResponse({\"error\": \"Missing product_id\"}, status=400)\n        product = Product.objects.get(product_id=product_id)\n        variants = ProductVariant.objects.filter(product=product)\n        printing_methods = set()\n        sizes = set()",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_product_shipping_info",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_product_shipping_info(request):\n    try:\n        data = json.loads(request.body)\n        product_id = data.get('product_id')\n        if not product_id:\n            return JsonResponse({\"error\": \"Missing product_id\"}, status=400)\n        shipping = ShippingInfo.objects.get(product_id=product_id)\n        data = {\n            \"shipping_class\": shipping.shipping_class,\n            \"processing_time\": shipping.processing_time",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_product_other_details",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_product_other_details(request):\n    try:\n        data = json.loads(request.body)\n        product_id = data.get(\"product_id\")\n        if not product_id:\n            return JsonResponse({\"error\": \"Missing product_id\"}, status=400)\n        images = ProductImage.objects.filter(product_id=product_id).select_related('image')\n        image_urls = [\n            f\"http://127.0.0.1:8000{img.image.url}\" for img in images if img.image and img.image.url\n        ]",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_product_seo",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_product_seo(request):\n    try:\n        data = json.loads(request.body)\n        product_id = data.get('product_id')\n        if not product_id:\n            return JsonResponse({\"error\": \"Missing product_id\"}, status=400)\n        seo = ProductSEO.objects.get(product__product_id=product_id)\n        data = {\n            \"meta_title\": seo.meta_title,\n            \"meta_description\": seo.meta_description,",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_variant_combinations",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_variant_combinations(request):\n    try:\n        data = json.loads(request.body)\n        product_id = data.get(\"product_id\")\n        if not product_id:\n            return JsonResponse({\"error\": \"Missing product_id\"}, status=400)\n        product = Product.objects.get(product_id=product_id)\n        variants = ProductVariant.objects.filter(product=product)\n        combos = []\n        for variant in variants:",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "update_product_order",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def update_product_order(request):\n    try:\n        data = json.loads(request.body)\n        updates = data.get(\"products\", [])\n        for idx, item in enumerate(updates):\n            product_id = item.get(\"id\")\n            product = Product.objects.filter(product_id=product_id).first()\n            if product:\n                product.order = idx\n                product.save()",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "edit_product",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def edit_product(request):\n    try:\n        data = json.loads(request.body)\n        product_ids = data.get('product_ids') or []\n        if isinstance(product_ids, str):\n            product_ids = [product_ids]  # handle single string\n        if not product_ids:\n            return JsonResponse({'error': 'No product_ids provided'}, status=400)\n        updated_products = []\n        for product_id in product_ids:",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "format_image_object",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def format_image_object(image_obj):\n    if image_obj and image_obj.image and image_obj.image.url:\n        return {\n            \"url\": f\"http://127.0.0.1:8000{image_obj.image.url}\",\n            \"alt_text\": image_obj.image.alt_text or \"Image\"\n        }\n    return None\n@csrf_exempt\ndef show_nav_items(request):\n    data = []",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_nav_items",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_nav_items(request):\n    data = []\n    # Fetch only visible categories and sort by order\n    categories = Category.objects.filter(status=\"visible\").order_by(\"order\")\n    for cat in categories:\n        # Get all images for the category\n        cat_image_objs = CategoryImage.objects.filter(category=cat).select_related('image')\n        cat_image_urls = [img for img in (format_image_object(img) for img in cat_image_objs) if img]\n        # Fetch subcategories mapped to this category with status = visible\n        subcat_maps = CategorySubCategoryMap.objects.filter(",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "save_user",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def save_user(request):\n    if request.method == 'POST':\n        try:\n            data = json.loads(request.body)\n            user_id = data.get('user_id')\n            email = data.get('email')\n            password = data.get('password', '')\n            name = data.get('name', '')\n            created_at = timezone.now()\n            if not user_id or not email:",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_user",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_user(request):\n    if request.method == 'GET':\n        users = User.objects.all().values('user_id', 'email', 'first_name', 'created_at', 'updated_at')\n        return JsonResponse({'users': list(users)}, status=200)\n    else:\n        return JsonResponse({'error': 'Invalid request method'}, status=405)\n@csrf_exempt\ndef save_cart(request):\n    if request.method == \"POST\":\n        try:",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "save_cart",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def save_cart(request):\n    if request.method == \"POST\":\n        try:\n            data = json.loads(request.body)\n            device_uuid = data.get(\"device_uuid\") or request.headers.get(\"X-Device-UUID\")\n            print(\"🟡 [SAVE_CART] Device UUID received:\", device_uuid)\n            if not device_uuid:\n                return JsonResponse({\"error\": \"Missing device UUID.\"}, status=400)\n            product_id = data.get('product_id')\n            quantity = int(data.get('quantity', 1))",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_cart",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_cart(request):\n    try:\n        device_uuid = request.headers.get('X-Device-UUID')\n        # Fallback: also accept from POST body if header is missing\n        if not device_uuid and request.method == \"POST\":\n            try:\n                data = json.loads(request.body)\n                device_uuid = data.get(\"device_uuid\")\n            except:\n                pass",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "delete_cart_item",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def delete_cart_item(request):\n    if request.method == \"POST\":\n        try:\n            data = json.loads(request.body)\n            user_id = data.get('user_id')  # could be user id or device UUID\n            product_id = data.get('product_id')\n            if not user_id or not product_id:\n                return JsonResponse({\"error\": \"user_id and product_id are required.\"}, status=400)\n            User = get_user_model()\n            try:",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "save_order",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def save_order(request):\n    if request.method == \"POST\":\n        try:\n            with transaction.atomic():\n                data = json.loads(request.body)\n                user_name = data.get(\"user_name\", \"Guest\")\n                delivery_data = data[\"delivery\"]\n                email = delivery_data.get(\"email\", \"NA\")\n                order_id = generate_custom_order_id(user_name, email)\n                order = Orders.objects.create(",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_order",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_order(request):\n    if request.method == \"GET\":\n        try:\n            orders_data = []\n            orders = Orders.objects.all().order_by('-created_at')\n            for order in orders:\n                # Fetch order items\n                order_items = OrderItem.objects.filter(order=order)\n                item_names = [item.product.title for item in order_items]\n                # Attempt to fetch delivery details (may not always exist)",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "edit_order",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def edit_order(request):\n    if request.method == \"PUT\":\n        try:\n            data = json.loads(request.body)\n            order_id = data.get(\"order_id\")\n            if not order_id:\n                return JsonResponse({\"error\": \"Missing order_id in request body\"}, status=400)\n            order = get_object_or_404(Orders, order_id=order_id)\n            # Update basic fields\n            order.user_name = data.get(\"user_name\", order.user_name)",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_admin",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_admin(request):\n    try:\n        result = []\n        all_admins = Admin.objects.all()\n        for admin in all_admins:\n            role_map = AdminRoleMap.objects.filter(admin=admin).first()\n            if role_map:\n                role = role_map.role\n                result.append({\n                    \"admin_id\": admin.admin_id,",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "save_admin",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def save_admin(request):\n    try:\n        data = request.data\n        admin_name = data.get(\"admin_name\")\n        password = data.get(\"password\")\n        role_name = data.get(\"role_name\")\n        access_pages = data.get(\"access_pages\", [])\n        if not admin_name or not password or not role_name:\n            return Response({\"success\": False, \"error\": \"Missing required fields\"}, status=400)\n        password_hash = password",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "delete_admin",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def delete_admin(request):\n    try:\n        admin_id = request.data.get(\"admin_id\")\n        if not admin_id:\n            return Response({\"success\": False, \"error\": \"admin_id is required\"}, status=400)\n        admin = Admin.objects.get(admin_id=admin_id)\n        # Delete role mapping first (if exists)\n        AdminRoleMap.objects.filter(admin=admin).delete()\n        # Then delete the admin itself\n        admin.delete()",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "admin_login",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def admin_login(request):\n    try:\n        admin_name = request.data.get('username')\n        password = request.data.get('password')\n        if not admin_name or not password:\n            return Response({\"success\": False, \"error\": \"Username and password are required\"}, status=400)\n        admin = Admin.objects.get(admin_name=admin_name)\n        if admin.password_hash == password:\n            role_map = AdminRoleMap.objects.get(admin=admin)\n            role = role_map.role",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_all_images",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_all_images(request):\n    if request.method == 'GET':\n        images = Image.objects.all().order_by('-created_at')\n        data = []\n        for image in images:\n            data.append({\n                'image_id': image.image_id,\n                'url': image.url,\n                'alt_text': image.alt_text,\n                'width': image.width,",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "edit_image",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def edit_image(request):\n    if request.method == 'PUT':\n        try:\n            data = json.loads(request.body)\n            image_id = data.get('image_id')\n            if not image_id:\n                return JsonResponse({'error': 'Image ID is required'}, status=400)\n            image = Image.objects.get(image_id=image_id)\n            image.alt_text = data.get('alt_text', image.alt_text)\n            image.width = data.get('width', image.width)",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "delete_image",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def delete_image(request):\n    if request.method == 'POST':\n        try:\n            data = json.loads(request.body)\n            image_id = data.get('image_id')\n            if not image_id:\n                return JsonResponse({'error': 'Image ID is required'}, status=400)\n            image = Image.objects.get(image_id=image_id)\n            image.delete()\n            return JsonResponse({'message': 'Image deleted successfully'})",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "first_carousel",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def first_carousel(request):\n    if request.method == 'GET':\n        try:\n            carousel = FirstCarousel.objects.last()\n            if not carousel:\n                return JsonResponse({\n                    'title': 'Default Title',\n                    'description': 'Default Description',\n                    'images': [\n                        '/uploads/img1.jpg',",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "second_carousel",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def second_carousel(request):\n    if request.method == 'GET':\n        try:\n            carousel = SecondCarousel.objects.last()\n            if not carousel:\n                return JsonResponse({\n                    'title': 'Default Title',\n                    'description': 'Default Description',\n                    'images': [\n                        '/uploads/img1.jpg',",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "hero_banner",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def hero_banner(request):\n    if request.method == 'GET':\n        try:\n            hero = HeroBanner.objects.last()\n            if not hero:\n                return JsonResponse({\n                    'images': [\n                        {\n                            \"url\": f'{request.scheme}://{request.get_host()}/uploads/desktop_default.jpg',\n                            \"device_type\": \"desktop\"",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "get_notifications",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def get_notifications(request):\n    notifications = Notification.objects.order_by('-created_at')[:1000] \n    serializer = NotificationSerializer(notifications, many=True)\n    return Response(serializer.data)\n@api_view(['POST'])\ndef update_notification_status(request):\n    notification_id = request.data.get(\"notification_id\")\n    new_status = request.data.get(\"status\")  # must be \"read\" or \"unread\"\n    if not notification_id or new_status not in [\"read\", \"unread\"]:\n        return Response({\"error\": \"Invalid data\"}, status=status.HTTP_400_BAD_REQUEST)",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "update_notification_status",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def update_notification_status(request):\n    notification_id = request.data.get(\"notification_id\")\n    new_status = request.data.get(\"status\")  # must be \"read\" or \"unread\"\n    if not notification_id or new_status not in [\"read\", \"unread\"]:\n        return Response({\"error\": \"Invalid data\"}, status=status.HTTP_400_BAD_REQUEST)\n    try:\n        notification = Notification.objects.get(notification_id=notification_id)\n        notification.status = new_status\n        notification.save()\n        return Response({\"message\": \"Status updated\"}, status=status.HTTP_200_OK)",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "update_image",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def update_image(request, image_id):\n    try:\n        image = Image.objects.get(image_id=image_id)\n    except ObjectDoesNotExist:\n        return JsonResponse({'error': 'Image not found'}, status=404)\n    # Handle file upload\n    if 'image_file' in request.FILES:\n        image.image_file = request.FILES['image_file']\n    # Optional metadata fields\n    alt_text = request.POST.get('alt_text')",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "save_blog",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def save_blog(request):\n    if request.method == \"POST\":\n        try:\n            data = json.loads(request.body)\n            blog_id = str(uuid.uuid4())\n            blog = Blog.objects.create(\n                blog_id=blog_id,\n                title=data.get(\"title\", \"\"),\n                content=data.get(\"content\", \"\"),\n                blog_image=data.get(\"blog_image\", \"\"),",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "edit_blog",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def edit_blog(request, blog_id):\n    if request.method == \"POST\":\n        try:\n            data = json.loads(request.body)\n            blog = Blog.objects.get(blog_id=blog_id)\n            blog.title = data.get(\"title\", blog.title)\n            blog.content = data.get(\"content\", blog.content)\n            blog.blog_image = data.get(\"blog_image\", blog.blog_image)\n            blog.schedule_date = data.get(\"schedule_date\", blog.schedule_date)\n            blog.status = data.get(\"status\", blog.status)",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "show_blogs",
+        "kind": 2,
+        "importPath": "admin_backend_final.views",
+        "description": "admin_backend_final.views",
+        "peekOfCode": "def show_blogs(request):\n    if request.method == \"GET\":\n        blogs = Blog.objects.all().order_by(\"-created_at\")\n        blog_list = []\n        for blog in blogs:\n            categories = BlogCategoryMap.objects.filter(blog=blog).select_related(\"category\")\n            blog_list.append({\n                \"blog_id\": blog.blog_id,\n                \"title\": blog.title,\n                \"content\": blog.content,",
+        "detail": "admin_backend_final.views",
+        "documentation": {}
+    },
+    {
+        "label": "application",
+        "kind": 5,
+        "importPath": "backend.asgi",
+        "description": "backend.asgi",
+        "peekOfCode": "application = get_asgi_application()",
+        "detail": "backend.asgi",
+        "documentation": {}
+    },
+    {
+        "label": "BASE_DIR",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "BASE_DIR = Path(__file__).resolve().parent.parent\n# Quick-start development settings - unsuitable for production\n# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/\n# SECURITY WARNING: keep the secret key used in production secret!\nSECRET_KEY = 'django-insecure-hjtn-w(af!i&o5nx&ykfn9s67va+kp42!geri)8h4p@j0$!q4g'\n# SECURITY WARNING: don't run with debug turned on in production!\nDEBUG = True\nALLOWED_HOSTS = []\n# Application definition\nINSTALLED_APPS = [",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "SECRET_KEY",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "SECRET_KEY = 'django-insecure-hjtn-w(af!i&o5nx&ykfn9s67va+kp42!geri)8h4p@j0$!q4g'\n# SECURITY WARNING: don't run with debug turned on in production!\nDEBUG = True\nALLOWED_HOSTS = []\n# Application definition\nINSTALLED_APPS = [\n    'django.contrib.admin',\n    'django.contrib.auth',\n    'django.contrib.contenttypes',\n    'django.contrib.sessions',",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "DEBUG",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "DEBUG = True\nALLOWED_HOSTS = []\n# Application definition\nINSTALLED_APPS = [\n    'django.contrib.admin',\n    'django.contrib.auth',\n    'django.contrib.contenttypes',\n    'django.contrib.sessions',\n    'django.contrib.messages',\n    'django.contrib.staticfiles',",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "ALLOWED_HOSTS",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "ALLOWED_HOSTS = []\n# Application definition\nINSTALLED_APPS = [\n    'django.contrib.admin',\n    'django.contrib.auth',\n    'django.contrib.contenttypes',\n    'django.contrib.sessions',\n    'django.contrib.messages',\n    'django.contrib.staticfiles',\n    'corsheaders',",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "INSTALLED_APPS",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "INSTALLED_APPS = [\n    'django.contrib.admin',\n    'django.contrib.auth',\n    'django.contrib.contenttypes',\n    'django.contrib.sessions',\n    'django.contrib.messages',\n    'django.contrib.staticfiles',\n    'corsheaders',\n    'admin_backend_final.apps.AdminBackendFinalConfig',\n]",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "MIDDLEWARE",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "MIDDLEWARE = [\n    'corsheaders.middleware.CorsMiddleware',\n    'django.middleware.security.SecurityMiddleware',\n    'django.contrib.sessions.middleware.SessionMiddleware',\n    'django.middleware.common.CommonMiddleware',\n    'django.middleware.csrf.CsrfViewMiddleware',\n    'django.contrib.auth.middleware.AuthenticationMiddleware',\n    'django.contrib.messages.middleware.MessageMiddleware',\n    'django.middleware.clickjacking.XFrameOptionsMiddleware',\n]",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "ROOT_URLCONF",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "ROOT_URLCONF = 'backend.urls'\nTEMPLATES = [\n    {\n        'BACKEND': 'django.template.backends.django.DjangoTemplates',\n        'DIRS': [],\n        'APP_DIRS': True,\n        'OPTIONS': {\n            'context_processors': [\n                'django.template.context_processors.request',\n                'django.contrib.auth.context_processors.auth',",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "TEMPLATES",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "TEMPLATES = [\n    {\n        'BACKEND': 'django.template.backends.django.DjangoTemplates',\n        'DIRS': [],\n        'APP_DIRS': True,\n        'OPTIONS': {\n            'context_processors': [\n                'django.template.context_processors.request',\n                'django.contrib.auth.context_processors.auth',\n                'django.contrib.messages.context_processors.messages',",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "WSGI_APPLICATION",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "WSGI_APPLICATION = 'backend.wsgi.application'\n# Database\n# https://docs.djangoproject.com/en/5.2/ref/settings/#databases\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': BASE_DIR / 'db.sqlite3',\n    }\n}\n# Password validation",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "DATABASES",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "DATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': BASE_DIR / 'db.sqlite3',\n    }\n}\n# Password validation\n# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators\nAUTH_PASSWORD_VALIDATORS = [\n    {",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "AUTH_PASSWORD_VALIDATORS",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "AUTH_PASSWORD_VALIDATORS = [\n    {\n        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',\n    },\n    {\n        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',\n    },\n    {\n        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',\n    },",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "LANGUAGE_CODE",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "LANGUAGE_CODE = 'en-us'\nTIME_ZONE = 'UTC'\nUSE_I18N = True\nUSE_TZ = True\n# Static files (CSS, JavaScript, Images)\n# https://docs.djangoproject.com/en/5.2/howto/static-files/\nSTATIC_URL = 'static/'\n# Default primary key field type\n# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "TIME_ZONE",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "TIME_ZONE = 'UTC'\nUSE_I18N = True\nUSE_TZ = True\n# Static files (CSS, JavaScript, Images)\n# https://docs.djangoproject.com/en/5.2/howto/static-files/\nSTATIC_URL = 'static/'\n# Default primary key field type\n# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\nCORS_ALLOW_ALL_ORIGINS = True ",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "USE_I18N",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "USE_I18N = True\nUSE_TZ = True\n# Static files (CSS, JavaScript, Images)\n# https://docs.djangoproject.com/en/5.2/howto/static-files/\nSTATIC_URL = 'static/'\n# Default primary key field type\n# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\nCORS_ALLOW_ALL_ORIGINS = True \nAUTH_USER_MODEL = 'admin_backend_final.User'",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "USE_TZ",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "USE_TZ = True\n# Static files (CSS, JavaScript, Images)\n# https://docs.djangoproject.com/en/5.2/howto/static-files/\nSTATIC_URL = 'static/'\n# Default primary key field type\n# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\nCORS_ALLOW_ALL_ORIGINS = True \nAUTH_USER_MODEL = 'admin_backend_final.User'\nCORS_ALLOW_HEADERS = list(default_headers) + [",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "STATIC_URL",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "STATIC_URL = 'static/'\n# Default primary key field type\n# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\nCORS_ALLOW_ALL_ORIGINS = True \nAUTH_USER_MODEL = 'admin_backend_final.User'\nCORS_ALLOW_HEADERS = list(default_headers) + [\n    'X-Device-UUID',\n]\nMEDIA_URL = '/media/'",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "DEFAULT_AUTO_FIELD",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\nCORS_ALLOW_ALL_ORIGINS = True \nAUTH_USER_MODEL = 'admin_backend_final.User'\nCORS_ALLOW_HEADERS = list(default_headers) + [\n    'X-Device-UUID',\n]\nMEDIA_URL = '/media/'\nMEDIA_ROOT = os.path.join(BASE_DIR, 'media')\n# settings.py\nREST_FRAMEWORK = {",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "CORS_ALLOW_ALL_ORIGINS",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "CORS_ALLOW_ALL_ORIGINS = True \nAUTH_USER_MODEL = 'admin_backend_final.User'\nCORS_ALLOW_HEADERS = list(default_headers) + [\n    'X-Device-UUID',\n]\nMEDIA_URL = '/media/'\nMEDIA_ROOT = os.path.join(BASE_DIR, 'media')\n# settings.py\nREST_FRAMEWORK = {\n    'DEFAULT_AUTHENTICATION_CLASSES': (",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "AUTH_USER_MODEL",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "AUTH_USER_MODEL = 'admin_backend_final.User'\nCORS_ALLOW_HEADERS = list(default_headers) + [\n    'X-Device-UUID',\n]\nMEDIA_URL = '/media/'\nMEDIA_ROOT = os.path.join(BASE_DIR, 'media')\n# settings.py\nREST_FRAMEWORK = {\n    'DEFAULT_AUTHENTICATION_CLASSES': (\n        'rest_framework.authentication.SessionAuthentication',",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "CORS_ALLOW_HEADERS",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "CORS_ALLOW_HEADERS = list(default_headers) + [\n    'X-Device-UUID',\n]\nMEDIA_URL = '/media/'\nMEDIA_ROOT = os.path.join(BASE_DIR, 'media')\n# settings.py\nREST_FRAMEWORK = {\n    'DEFAULT_AUTHENTICATION_CLASSES': (\n        'rest_framework.authentication.SessionAuthentication',\n    )",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "MEDIA_URL",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "MEDIA_URL = '/media/'\nMEDIA_ROOT = os.path.join(BASE_DIR, 'media')\n# settings.py\nREST_FRAMEWORK = {\n    'DEFAULT_AUTHENTICATION_CLASSES': (\n        'rest_framework.authentication.SessionAuthentication',\n    )\n}\nFILE_UPLOAD_HANDLERS = [\n    'django.core.files.uploadhandler.MemoryFileUploadHandler',",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "MEDIA_ROOT",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "MEDIA_ROOT = os.path.join(BASE_DIR, 'media')\n# settings.py\nREST_FRAMEWORK = {\n    'DEFAULT_AUTHENTICATION_CLASSES': (\n        'rest_framework.authentication.SessionAuthentication',\n    )\n}\nFILE_UPLOAD_HANDLERS = [\n    'django.core.files.uploadhandler.MemoryFileUploadHandler',\n    'django.core.files.uploadhandler.TemporaryFileUploadHandler',",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "REST_FRAMEWORK",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "REST_FRAMEWORK = {\n    'DEFAULT_AUTHENTICATION_CLASSES': (\n        'rest_framework.authentication.SessionAuthentication',\n    )\n}\nFILE_UPLOAD_HANDLERS = [\n    'django.core.files.uploadhandler.MemoryFileUploadHandler',\n    'django.core.files.uploadhandler.TemporaryFileUploadHandler',\n]\nFILE_UPLOAD_MAX_MEMORY_SIZE = 1073741824 ",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "FILE_UPLOAD_HANDLERS",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "FILE_UPLOAD_HANDLERS = [\n    'django.core.files.uploadhandler.MemoryFileUploadHandler',\n    'django.core.files.uploadhandler.TemporaryFileUploadHandler',\n]\nFILE_UPLOAD_MAX_MEMORY_SIZE = 1073741824 \nDATA_UPLOAD_MAX_MEMORY_SIZE = 1073741824",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "FILE_UPLOAD_MAX_MEMORY_SIZE",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "FILE_UPLOAD_MAX_MEMORY_SIZE = 1073741824 \nDATA_UPLOAD_MAX_MEMORY_SIZE = 1073741824",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "DATA_UPLOAD_MAX_MEMORY_SIZE",
+        "kind": 5,
+        "importPath": "backend.settings",
+        "description": "backend.settings",
+        "peekOfCode": "DATA_UPLOAD_MAX_MEMORY_SIZE = 1073741824",
+        "detail": "backend.settings",
+        "documentation": {}
+    },
+    {
+        "label": "urlpatterns",
+        "kind": 5,
+        "importPath": "backend.urls",
+        "description": "backend.urls",
+        "peekOfCode": "urlpatterns = [\n    path('admin/', admin.site.urls),\n    path('api/', include('admin_backend_final.urls')),\n]\nif settings.DEBUG:\n    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)",
+        "detail": "backend.urls",
+        "documentation": {}
+    },
+    {
+        "label": "application",
+        "kind": 5,
+        "importPath": "backend.wsgi",
+        "description": "backend.wsgi",
+        "peekOfCode": "application = get_wsgi_application()",
+        "detail": "backend.wsgi",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "manage",
+        "description": "manage",
+        "peekOfCode": "def main():\n    \"\"\"Run administrative tasks.\"\"\"\n    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')\n    try:\n        from django.core.management import execute_from_command_line\n    except ImportError as exc:\n        raise ImportError(\n            \"Couldn't import Django. Are you sure it's installed and \"\n            \"available on your PYTHONPATH environment variable? Did you \"\n            \"forget to activate a virtual environment?\"",
+        "detail": "manage",
+        "documentation": {}
+    }
+]
