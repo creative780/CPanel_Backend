@@ -769,91 +769,6 @@ class UpdateHiddenStatusAPIView(APIView):
     def get(self, request):
         return Response({'error': 'Invalid request method'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-def generate_unique_slug(base_slug, instance=None):
-    slug_val = base_slug
-    counter = 1
-    while ProductSEO.objects.filter(slug=slug_val).exclude(product=instance).exists():
-        slug_val = f"{base_slug}-{counter}"
-        counter += 1
-    return slug_val
-
-def generate_unique_seo_id(base_id):
-    count = 1
-    new_id = base_id
-    while ProductSEO.objects.filter(seo_id=new_id).exists():
-        new_id = f"{base_id}-{count}"
-        count += 1
-    return new_id
-
-def generate_product_id(name, subcat_id):
-    fallback_subcat_prefix = subcat_id[0].upper() if subcat_id else 'X'
-
-    if '-' in subcat_id:
-        parts = subcat_id.split('-', 1)
-        after_hyphen = parts[1]
-        segment = after_hyphen.split('-')[0].upper()
-        subcat_prefix = segment[:2] if len(segment) >= 1 else fallback_subcat_prefix
-    else:
-        subcat_prefix = fallback_subcat_prefix
-
-    first_letters = ''.join(word[0].upper() for word in re.findall(r'\b\w', name))
-    base = f"{subcat_prefix}-{first_letters}"
-
-    existing_ids = Product.objects.filter(product_id__startswith=base).values_list('product_id', flat=True)
-
-    numbers = []
-    for pid in existing_ids:
-        match = re.search(r'(\d{3})$', pid)
-        if match:
-            numbers.append(int(match.group(1)))
-
-    next_num = 1 if not numbers else max(numbers) + 1
-    if next_num > 999:
-        raise ValueError("Exceeded maximum 3-digit unique number for this base ID")
-
-    return f"{base}-{next_num:03d}"
-
-def save_image(file_or_base64, alt_text="Alt-text", tags="", linked_table="", linked_page="", linked_id=""):
-    try:
-        if isinstance(file_or_base64, str) and file_or_base64.startswith("data:image/"):
-            header, encoded = file_or_base64.split(",", 1)
-            file_ext = header.split('/')[1].split(';')[0]
-            image_data = base64.b64decode(encoded)
-            image = PILImage.open(BytesIO(image_data))
-            width, height = image.size
-            filename = f"{uuid.uuid4()}.{file_ext}"
-            content_file = ContentFile(image_data, name=filename)
-            image_type = f".{file_ext}"
-        else:
-            image = PILImage.open(file_or_base64)
-            width, height = image.size
-            filename = file_or_base64.name
-            content_file = file_or_base64
-            image_type = os.path.splitext(filename)[-1].lower()
-
-        parsed_tags = [tag.strip() for tag in tags.split(',')] if tags else []
-
-        new_image = Image(
-            image_id=f"IMG-{uuid.uuid4().hex[:8]}",
-            alt_text=alt_text,
-            width=width,
-            height=height,
-            tags=parsed_tags,
-            image_type=image_type,
-            linked_table=linked_table,
-            linked_page=linked_page,
-            linked_id=linked_id,
-            created_at=timezone.now()
-        )
-        new_image.image_file.save(filename, content_file)
-        new_image.save()
-
-        return new_image
-
-    except Exception as e:
-        print("Image save error:", str(e))
-        return None
-
 
 # -----------------------------
 # Domain helpers (same logic)
@@ -1056,14 +971,6 @@ def update_stock_status(inventory):
     inventory.updated_at = timezone.now()
     inventory.save()
 
-def format_image_object(image_obj):
-    if image_obj and image_obj.image and image_obj.image.url:
-        return {
-            "url": f"http://127.0.0.1:8000{image_obj.image.url}",
-            "alt_text": image_obj.image.alt_text or "Image"
-        }
-    return None
-
 
 # -----------------------------
 # DRF APIViews (same endpoints)
@@ -1134,16 +1041,25 @@ class ShowProductsAPIView(APIView):
         product_list = []
 
         for product in products:
-            image_obj = ProductImage.objects.filter(product=product).select_related('image').first()
-            image_url = (
-                f"http://127.0.0.1:8000{image_obj.image.url}"
-                if image_obj and image_obj.image and image_obj.image.url else ""
+            # first image (through-model)
+            image_rel = (
+                ProductImage.objects
+                .filter(product=product)
+                .select_related('image')
+                .first()
             )
+            img_dict = format_image_object(image_rel, request=request)
+            image_url = img_dict["url"] if img_dict else ""
 
-            subcategory_map = ProductSubCategoryMap.objects.filter(product=product).select_related('subcategory').first()
+            subcategory_map = (
+                ProductSubCategoryMap.objects
+                .filter(product=product)
+                .select_related('subcategory')
+                .first()
+            )
             subcategory_data = {
                 "id": subcategory_map.subcategory.subcategory_id if subcategory_map else None,
-                "name": subcategory_map.subcategory.name if subcategory_map else None
+                "name": subcategory_map.subcategory.name if subcategory_map else None,
             }
 
             try:
@@ -1164,12 +1080,12 @@ class ShowProductsAPIView(APIView):
             product_list.append({
                 "id": product.product_id,
                 "name": product.title,
-                "image": image_url,
+                "image": image_url,  # string URL
                 "subcategory": subcategory_data,
                 "stock_status": stock_status,
                 "stock_quantity": stock_quantity,
                 "price": str(product.price),
-                "printing_methods": list(printing_methods)
+                "printing_methods": list(printing_methods),
             })
 
         return Response(product_list, status=status.HTTP_200_OK)
@@ -1303,21 +1219,24 @@ class ShowProductOtherDetailsAPIView(APIView):
                 return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
 
             images = ProductImage.objects.filter(product_id=product_id).select_related('image')
-            image_urls = [
-                f"http://127.0.0.1:8000{img.image.url}" for img in images if img.image and img.image.url
-            ]
+            image_urls = []
+            for rel in images:
+                d = format_image_object(rel, request=request)
+                if d:
+                    image_urls.append(d["url"])  # keep the same shape: list[str]
 
             subcategory_ids = list(
-                ProductSubCategoryMap.objects.filter(product_id=product_id)
+                ProductSubCategoryMap.objects
+                .filter(product_id=product_id)
                 .values_list('subcategory__subcategory_id', flat=True)
             )
 
             data_out = {
-                "images": image_urls,
+                "images": image_urls,          # list of absolute URLs
                 "subcategory_ids": subcategory_ids
             }
-
             return Response(data_out, status=status.HTTP_200_OK)
+
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -1463,13 +1382,37 @@ class EditProductAPIView(APIView):
             traceback.print_exc()
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-def format_image_object(image_obj):
-    if image_obj and image_obj.image and image_obj.image.url:
-        return {
-            "url": f"http://127.0.0.1:8000{image_obj.image.url}",
-            "alt_text": image_obj.image.alt_text or "Image"
-        }
-    return None
+# ✅ Use this one helper everywhere you format images
+def format_image_object(image_obj, request=None):
+    """
+    Accepts either:
+      - a through-model instance (e.g., CategoryImage/SubCategoryImage/ProductImage) that has .image, or
+      - an Image instance directly
+
+    Returns: {"url": <abs_or_rel_url>, "alt_text": <str>} or None
+    """
+    img = getattr(image_obj, "image", image_obj)  # support through-model or direct Image
+    if not img:
+        return None
+
+    url = getattr(img, "url", None)  # your Image.url property returns "/media/.."
+    if not url:
+        return None
+
+    # build absolute URL when request is available (prod-safe; works in dev too)
+    if request:
+        try:
+            url = request.build_absolute_uri(url)
+        except Exception:
+            # fallback to relative on any edge error
+            pass
+
+    return {
+        "url": url,
+        "alt_text": getattr(img, "alt_text", "") or "Image"
+    }
+
+
   
 # show_nav_items -> APIView (GET)
 class ShowNavItemsAPIView(APIView):
@@ -1482,49 +1425,57 @@ class ShowNavItemsAPIView(APIView):
 
         for cat in categories:
             cat_image_objs = CategoryImage.objects.filter(category=cat).select_related('image')
-            cat_image_urls = [img for img in (format_image_object(img) for img in cat_image_objs) if img]
+            cat_image_urls = [
+                img for img in (format_image_object(obj, request=request) for obj in cat_image_objs) if img
+            ]
 
-            subcat_maps = CategorySubCategoryMap.objects.filter(
-                category=cat, subcategory__status="visible"
-            ).select_related('subcategory').order_by('subcategory__order')
+            subcat_maps = (
+                CategorySubCategoryMap.objects
+                .filter(category=cat, subcategory__status="visible")
+                .select_related('subcategory')
+                .order_by('subcategory__order')
+            )
 
             subcategories = []
             for map_entry in subcat_maps:
                 sub = map_entry.subcategory
 
                 sub_image_objs = SubCategoryImage.objects.filter(subcategory=sub).select_related('image')
-                sub_image_urls = [img for img in (format_image_object(img) for img in sub_image_objs) if img]
+                sub_image_urls = [
+                    img for img in (format_image_object(obj, request=request) for obj in sub_image_objs) if img
+                ]
 
                 prod_maps = ProductSubCategoryMap.objects.filter(subcategory=sub).select_related('product')
                 products = []
-
                 for prod_map in prod_maps:
                     prod = prod_map.product
 
                     prod_image_objs = ProductImage.objects.filter(product=prod).select_related('image')
-                    prod_image_urls = [img for img in (format_image_object(img) for img in prod_image_objs) if img]
+                    prod_image_urls = [
+                        img for img in (format_image_object(obj, request=request) for obj in prod_image_objs) if img
+                    ]
 
                     products.append({
                         "id": prod.product_id,
                         "name": prod.title,
-                        "images": prod_image_urls,
-                        "url": slugify(prod.title)
+                        "images": prod_image_urls,  # [{url, alt_text}, ...]
+                        "url": slugify(prod.title),
                     })
 
                 subcategories.append({
                     "id": sub.subcategory_id,
                     "name": sub.name,
-                    "images": sub_image_urls,
+                    "images": sub_image_urls,  # [{url, alt_text}, ...]
                     "url": slugify(sub.name),
-                    "products": products
+                    "products": products,
                 })
 
             data.append({
                 "id": cat.category_id,
                 "name": cat.name,
-                "images": cat_image_urls,
+                "images": cat_image_urls,  # [{url, alt_text}, ...]
                 "url": slugify(cat.name),
-                "subcategories": subcategories
+                "subcategories": subcategories,
             })
 
         return Response(data, status=status.HTTP_200_OK)
