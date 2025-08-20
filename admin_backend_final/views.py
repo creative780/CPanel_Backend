@@ -407,28 +407,29 @@ class ShowCategoryAPIView(APIView):
 class EditCategoryAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
+    @transaction.atomic
     def post(self, request):
         data = request.POST
         category_id = data.get('category_id')
         try:
-            category = Category.objects.get(category_id=category_id)
+            category = Category.objects.select_related().get(category_id=category_id)
         except Category.DoesNotExist:
             return Response({'error': 'Category not found'}, status=status.HTTP_404_NOT_FOUND)
 
+        # -------- Basic fields --------
         new_name = (data.get('name') or '').strip()
         if new_name:
             category.name = new_name
 
-        # caption/description updates (optional)
         if 'caption' in data:
             category.caption = (data.get('caption') or '').strip() or None
         if 'description' in data:
             category.description = (data.get('description') or '').strip() or None
 
         category.updated_at = timezone.now()
-        category.save()
+        category.save(update_fields=['name','caption','description','updated_at'])
 
-        # Normalize alt text, allow update without new image
+        # -------- Image handling --------
         alt_text = (
             data.get('alt_text') or
             data.get('imageAlt') or
@@ -437,7 +438,22 @@ class EditCategoryAPIView(APIView):
         ).strip()
 
         image_data = request.FILES.get('image') or request.POST.get('image')
+
         if image_data:
+            # HARD REPLACE: remove old bindings & delete orphaned images/files
+            old_rels = CategoryImage.objects.filter(category=category).select_related('image')
+            old_images = [rel.image for rel in old_rels if rel.image_id]
+            # delete relations first
+            CategoryImage.objects.filter(category=category).delete()
+
+            # delete image files/records if no other relation uses them
+            for img in old_images:
+                if img and not CategoryImage.objects.filter(image=img).exists():
+                    if getattr(img, 'image_file', None):
+                        img.image_file.delete(save=False)  # delete file from storage
+                    img.delete()
+
+            # Save new image and bind
             image = save_image(
                 image_data,
                 alt_text or "Alt-text",
@@ -449,7 +465,7 @@ class EditCategoryAPIView(APIView):
             if image:
                 CategoryImage.objects.create(category=category, image=image)
         else:
-            # No new image: update alt text on existing first image
+            # No new image => just alt_text update on existing FIRST image
             if alt_text:
                 rel = category.images.select_related('image').first()
                 if rel and rel.image:
@@ -457,8 +473,7 @@ class EditCategoryAPIView(APIView):
                     rel.image.save(update_fields=['alt_text'])
 
         return Response({'success': True, 'message': 'Category updated'}, status=status.HTTP_200_OK)
-
-
+    
 class DeleteCategoryAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -618,14 +633,16 @@ class ShowSubCategoryAPIView(APIView):
 class EditSubCategoryAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
+    @transaction.atomic
     def post(self, request):
         data = request.POST
         subcategory_id = data.get('subcategory_id')
         try:
-            subcategory = SubCategory.objects.get(subcategory_id=subcategory_id)
+            subcategory = SubCategory.objects.select_related().get(subcategory_id=subcategory_id)
         except SubCategory.DoesNotExist:
             return Response({'error': 'SubCategory not found'}, status=status.HTTP_404_NOT_FOUND)
 
+        # -------- Basic fields --------
         new_name = (data.get('name') or '').strip()
         if new_name:
             subcategory.name = new_name
@@ -636,8 +653,9 @@ class EditSubCategoryAPIView(APIView):
             subcategory.description = (data.get('description') or '').strip() or None
 
         subcategory.updated_at = timezone.now()
-        subcategory.save()
+        subcategory.save(update_fields=['name','caption','description','updated_at'])
 
+        # -------- Image handling --------
         alt_text = (
             data.get('alt_text') or
             data.get('imageAlt') or
@@ -646,7 +664,20 @@ class EditSubCategoryAPIView(APIView):
         ).strip()
 
         image_data = request.FILES.get('image') or request.POST.get('image')
+
         if image_data:
+            # HARD REPLACE: remove old bindings & delete orphaned images/files
+            old_rels = SubCategoryImage.objects.filter(subcategory=subcategory).select_related('image')
+            old_images = [rel.image for rel in old_rels if rel.image_id]
+            SubCategoryImage.objects.filter(subcategory=subcategory).delete()
+
+            for img in old_images:
+                if img and not SubCategoryImage.objects.filter(image=img).exists():
+                    if getattr(img, 'image_file', None):
+                        img.image_file.delete(save=False)
+                    img.delete()
+
+            # Save new image and bind
             image = save_image(
                 image_data,
                 alt_text or "Alt-text",
@@ -658,6 +689,7 @@ class EditSubCategoryAPIView(APIView):
             if image:
                 SubCategoryImage.objects.create(subcategory=subcategory, image=image)
         else:
+            # No new image => alt_text update on existing FIRST image
             if alt_text:
                 rel = subcategory.images.select_related('image').first()
                 if rel and rel.image:
@@ -665,7 +697,6 @@ class EditSubCategoryAPIView(APIView):
                     rel.image.save(update_fields=['alt_text'])
 
         return Response({'success': True, 'message': 'SubCategory updated'}, status=status.HTTP_200_OK)
-
 
 class DeleteSubCategoryAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
