@@ -160,7 +160,6 @@ if not CORS_ALLOW_ALL_ORIGINS:
     CORS_ALLOWED_ORIGINS = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "https://api.click2print.store",
         "https://click2print.store",
         "https://www.click2print.store",
         "https://app.click2print.store",
@@ -170,15 +169,17 @@ CORS_ALLOW_CREDENTIALS = True
 
 # Allow only header NAMES here (lowercase). Do NOT include secret values.
 FRONTEND_HEADER_NAME = os.getenv("FRONTEND_HEADER_NAME", "x-frontend-key").lower()
+
 CORS_ALLOW_HEADERS = list(default_headers) + [
-    FRONTEND_HEADER_NAME,  # e.g., "x-frontend-key"
-    "x-device-uuid",       # normalized to lowercase
+    "authorization",
+    "content-type",
+    FRONTEND_HEADER_NAME,   # x-frontend-key
+    "x-device-uuid",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:3000",
-    "https://api.click2print.store",
     "https://click2print.store",
     "https://www.click2print.store",
 ] + [o.strip() for o in os.getenv("CSRF_TRUSTED_ORIGINS_EXTRA", "").split(",") if o.strip()]
