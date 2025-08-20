@@ -170,12 +170,6 @@ CORS_ALLOW_CREDENTIALS = True
 # Allow only header NAMES here (lowercase). Do NOT include secret values.
 FRONTEND_HEADER_NAME = os.getenv("FRONTEND_HEADER_NAME", "x-frontend-key").lower()
 
-CORS_ALLOW_HEADERS = list(default_headers) + [
-    "authorization",
-    "content-type",
-    FRONTEND_HEADER_NAME,   # x-frontend-key
-    "x-device-uuid",
-]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:3000",
@@ -183,6 +177,16 @@ CSRF_TRUSTED_ORIGINS = [
     "https://click2print.store",
     "https://www.click2print.store",
 ] + [o.strip() for o in os.getenv("CSRF_TRUSTED_ORIGINS_EXTRA", "").split(",") if o.strip()]
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "authorization",
+    "content-type",
+    FRONTEND_HEADER_NAME,   # x-frontend-key
+    "x-device-uuid",
+]
+
+CORS_ALLOW_METHODS = list(default_methods) + ["PATCH"]
+CORS_PREFLIGHT_MAX_AGE = 86400
 
 # ---------------------------
 # Forwarded/Proxy & HTTPS
