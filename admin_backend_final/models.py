@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings  # for AUTH_USER_MODEL-safe FKs
+from decimal import Decimal
 
 # === USER AND ADMIN ===
 class User(AbstractUser):
@@ -69,6 +70,7 @@ class Image(models.Model):
 
     def __str__(self):
         return self.image_id
+    
 
 class Category(models.Model):
     category_id = models.CharField(primary_key=True, max_length=100)
@@ -218,12 +220,53 @@ class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="images")
     image = models.ForeignKey(Image, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
+    
 
+class Attribute(models.Model):
+    attr_id = models.CharField(primary_key=True, max_length=100)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="attributes", db_index=True)
+    # self-referencing for options
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name="options",
+        db_index=True,
+    )
+    # attribute-level field
+    name = models.CharField(max_length=255, blank=True, default="")   # used only when parent is NULL
+    # option-level fields
+    label = models.CharField(max_length=255, blank=True, default="")  # used only when parent is not NULL
+    image = models.ForeignKey(Image, on_delete=models.SET_NULL, null=True, blank=True, related_name="attribute_images")
+    price_delta = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    is_default = models.BooleanField(default=False)
+    # housekeeping
+    order = models.PositiveIntegerField(default=0, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        indexes = [
+            models.Index(fields=["product", "parent", "order"]),
+        ]
+        ordering = ["order", "name", "label"]
+    def is_attribute(self):
+        return self.parent_id is None
+    def is_option(self):
+        return self.parent_id is not None
+    def __str__(self):
+        if self.is_attribute():
+            return f"[Attribute] {self.name} :: {self.product.title}"
+        return f"[Option] {self.label} -> {self.parent.name}"
+    
 class Orders(models.Model):
     order_id = models.CharField(primary_key=True, max_length=100)
     user_name = models.CharField(max_length=255, blank=True)
     order_date = models.DateTimeField()
-    status = models.CharField(max_length=50, choices=[("pending", "Pending"), ("shipped", "Shipped"), ("completed", "Completed"), ("cancelled", "Cancelled")], db_index=True)
+    status = models.CharField(max_length=50, choices=[
+        ("pending", "Pending"),
+        ("shipped", "Shipped"),
+        ("completed", "Completed"),
+        ("cancelled", "Cancelled"),
+    ], db_index=True)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -232,27 +275,32 @@ class Orders(models.Model):
 class OrderItem(models.Model):
     item_id = models.CharField(primary_key=True, max_length=100)
     order = models.ForeignKey(Orders, on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    product = models.ForeignKey('Product', on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
+    selected_size = models.CharField(max_length=50, blank=True, null=True)
+    selected_attributes = models.JSONField(default=dict, blank=True)
+    selected_attributes_human = models.JSONField(default=list, blank=True)
+    variant_signature = models.CharField(max_length=255, blank=True, null=True)
+    attributes_price_delta = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    price_breakdown = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
 class OrderDelivery(models.Model):
     delivery_id = models.CharField(primary_key=True, max_length=100)
     order = models.OneToOneField(Orders, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
-    email = models.EmailField()
+    email = models.EmailField(blank=True, null=True)  # ← allow missing/NA
     phone = models.CharField(max_length=20)
     street_address = models.TextField()
     city = models.CharField(max_length=100, db_index=True)
     zip_code = models.CharField(max_length=20, db_index=True)
-    instructions = models.JSONField(default=list)
+    instructions = models.JSONField(default=list, blank=True)  # ← always list
     created_at = models.DateTimeField(auto_now_add=True)
-
+    
 class Cart(models.Model):
     cart_id = models.CharField(primary_key=True, max_length=100)
-    # Use AUTH_USER_MODEL-safe reference
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
     device_uuid = models.CharField(max_length=100, null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -266,7 +314,10 @@ class CartItem(models.Model):
     price_per_unit = models.DecimalField(max_digits=10, decimal_places=2)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)
     selected_size = models.CharField(max_length=50, blank=True, null=True)
-
+    selected_attributes = models.JSONField(default=dict, blank=True)
+    variant_signature = models.CharField(max_length=255, blank=True, default="", db_index=True)
+    attributes_price_delta = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    
 class Blog(models.Model):
     blog_id = models.CharField(primary_key=True, max_length=100)
     title = models.CharField(max_length=255, db_index=True)

@@ -800,11 +800,6 @@ class UpdateHiddenStatusAPIView(APIView):
     def get(self, request):
         return Response({'error': 'Invalid request method'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-
-# -----------------------------
-# Domain helpers (same logic)
-# -----------------------------
-
 def save_product_basic(data, is_edit=False, existing_product=None):
     name = data.get('name')
     brand = data.get('brand_title', '')
@@ -1002,11 +997,70 @@ def update_stock_status(inventory):
     inventory.updated_at = timezone.now()
     inventory.save()
 
+def save_product_attributes(data, product):
+    # accept any casing; frontend sends `custom_attributes`
+    attrs = (
+        data.get("attributes")
+        or data.get("custom_attributes")
+        or data.get("customAttributes")
+        or []
+    )
 
-# -----------------------------
-# DRF APIViews (same endpoints)
-# -----------------------------
+    if not isinstance(attrs, list):
+        attrs = []
 
+    # wipe & rebuild (keeps UI and DB in sync)
+    Attribute.objects.filter(product=product).delete()
+
+    for idx, att in enumerate(attrs):
+        name = (att.get("name") or "").strip()
+        if not name:
+            continue
+
+        parent = Attribute.objects.create(
+            attr_id=att.get("id") or f"ATTR-{uuid.uuid4().hex[:8].upper()}",
+            product=product,
+            parent=None,
+            name=name,
+            order=idx,
+        )
+
+        for o_idx, opt in enumerate(att.get("options") or []):
+            label = (opt.get("label") or "").strip()
+            if not label:
+                continue
+
+            # price
+            try:
+                price_delta = Decimal(str(opt.get("price_delta") or 0))
+            except Exception:
+                price_delta = Decimal("0")
+
+            # image
+            img_obj = None
+            if opt.get("image_id"):
+                img_obj = Image.objects.filter(image_id=opt["image_id"]).first()
+            if not img_obj and isinstance(opt.get("image"), str) and opt["image"].startswith("data:image/"):
+                img_obj = save_image(
+                    opt["image"],
+                    alt_text=f"{name} - {label}",
+                    tags="attribute,option",
+                    linked_table="product_attribute",
+                    linked_page="product-detail",
+                    linked_id=parent.attr_id,
+                )
+
+            Attribute.objects.create(
+                attr_id=opt.get("id") or f"ATOP-{uuid.uuid4().hex[:8].upper()}",
+                product=product,
+                parent=parent,
+                label=label,
+                image=img_obj,
+                price_delta=price_delta,
+                is_default=bool(opt.get("is_default")),
+                order=o_idx,
+            )
+            
 class SaveProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1022,11 +1076,11 @@ class SaveProductAPIView(APIView):
             save_product_variants(data, product)
             save_product_subcategories(data, product)
             save_product_images(data, product)
+            save_product_attributes(data, product)
             return Response({'success': True, 'product_id': product.product_id}, status=status.HTTP_200_OK)
         except Exception as e:
             traceback.print_exc()
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class DeleteProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -1062,7 +1116,6 @@ class DeleteProductAPIView(APIView):
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class ShowProductsAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -1121,7 +1174,6 @@ class ShowProductsAPIView(APIView):
 
         return Response(product_list, status=status.HTTP_200_OK)
 
-
 class ShowSpecificProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1172,7 +1224,6 @@ class ShowSpecificProductAPIView(APIView):
 
         return Response(response, status=status.HTTP_200_OK)
 
-
 class ShowProductVariantAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1214,7 +1265,6 @@ class ShowProductVariantAPIView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 class ShowProductShippingInfoAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1237,7 +1287,6 @@ class ShowProductShippingInfoAPIView(APIView):
             return Response({}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class ShowProductOtherDetailsAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -1270,7 +1319,6 @@ class ShowProductOtherDetailsAPIView(APIView):
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class ShowProductSEOAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -1305,7 +1353,6 @@ class ShowProductSEOAPIView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 class ShowVariantCombinationsAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1332,6 +1379,54 @@ class ShowVariantCombinationsAPIView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+class ShowProductAttributesAPIView(APIView):
+    permission_classes = [FrontendOnlyPermission]
+
+    def post(self, request):
+        try:
+            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+            product_id = data.get("product_id")
+            if not product_id:
+                return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
+
+            product = Product.objects.get(product_id=product_id)
+        except Product.DoesNotExist:
+            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Fetch parents with children in one go
+        parents = (
+            Attribute.objects
+            .filter(product=product, parent__isnull=True)
+            .prefetch_related(
+                models.Prefetch(
+                    "options",
+                    queryset=Attribute.objects.select_related("image").order_by("order", "label")
+                )
+            )
+            .order_by("order", "name")
+        )
+
+        out = []
+        for p in parents:
+            options = []
+            for opt in p.options.all():
+                img_dict = format_image_object(opt.image, request=request) if opt.image else None
+                options.append({
+                    "id": opt.attr_id,
+                    "label": opt.label,
+                    "image_id": opt.image.image_id if opt.image else None,
+                    "image_url": img_dict["url"] if img_dict else None,
+                    "price_delta": float(opt.price_delta) if opt.price_delta is not None else None,
+                    "is_default": bool(opt.is_default),
+                })
+            out.append({
+                "id": p.attr_id,
+                "name": p.name,
+                "options": options,
+            })
+        return Response(out, status=status.HTTP_200_OK)
 
 class UpdateProductOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -1351,7 +1446,6 @@ class UpdateProductOrderAPIView(APIView):
             return Response({"success": True}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class EditProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -1413,7 +1507,6 @@ class EditProductAPIView(APIView):
             traceback.print_exc()
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# ✅ Use this one helper everywhere you format images
 def format_image_object(image_obj, request=None):
     """
     Accepts either:
@@ -1442,10 +1535,7 @@ def format_image_object(image_obj, request=None):
         "url": url,
         "alt_text": getattr(img, "alt_text", "") or "Image"
     }
-
-
   
-# show_nav_items -> APIView (GET)
 class ShowNavItemsAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1511,8 +1601,6 @@ class ShowNavItemsAPIView(APIView):
 
         return Response(data, status=status.HTTP_200_OK)
 
-
-# save_user -> APIView (POST)
 class SaveUserAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1548,7 +1636,6 @@ class SaveUserAPIView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 # show_user -> APIView (GET)
 class ShowUserAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -1557,45 +1644,119 @@ class ShowUserAPIView(APIView):
         users = User.objects.all().values('user_id', 'email', 'first_name', 'created_at', 'updated_at')
         return Response({'users': list(users)}, status=status.HTTP_200_OK)
 
+from decimal import Decimal
+import hashlib, json, uuid
+from django.shortcuts import get_object_or_404
+from rest_framework.response import Response
+from rest_framework import status
 
-# save_cart -> APIView (POST)
+def _build_variant_signature(product_id: str, selected_size, selected_attributes: dict) -> str:
+    # stable, hashed signature of the selection
+    payload = {
+        "product": str(product_id),
+        "size": selected_size or "",
+        "attrs": {k: selected_attributes[k] for k in sorted((selected_attributes or {}).keys())},
+    }
+    s = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha1(s.encode()).hexdigest()
+
 class SaveCartAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
+    def _get_primary_cart(self, device_uuid: str) -> Cart:
+        cart = Cart.objects.filter(device_uuid=device_uuid).order_by("-updated_at", "-created_at").first()
+        if cart:
+            # Optional: merge any accidental duplicates for same device_uuid
+            dups = Cart.objects.filter(device_uuid=device_uuid).exclude(pk=cart.pk)
+            if dups.exists():
+                for dup in dups:
+                    CartItem.objects.filter(cart=dup).update(cart=cart)
+                    dup.delete()
+            return cart
+        return Cart.objects.create(cart_id=str(uuid.uuid4()), device_uuid=device_uuid)
+
+    def _compute_attributes_delta_and_details(self, selected_attrs: dict) -> tuple[Decimal, list]:
+        """
+        selected_attrs looks like { "<parent_attr_id>": "<option_attr_id>", ... }
+        Sum price_delta from each option attr and return human details.
+        """
+        total_delta = Decimal("0.00")
+        details = []
+
+        if not isinstance(selected_attrs, dict):
+            return total_delta, details
+
+        for parent_id, opt_id in selected_attrs.items():
+            opt = Attribute.objects.filter(attr_id=opt_id).select_related("parent").first()
+            parent = Attribute.objects.filter(attr_id=parent_id).first() if not (opt and opt.parent and opt.parent.attr_id == parent_id) else opt.parent
+
+            price_delta = Decimal(str(opt.price_delta)) if (opt and opt.price_delta is not None) else Decimal("0.00")
+            total_delta += price_delta
+
+            details.append({
+                "attribute_id": parent_id,
+                "option_id": opt_id,
+                "attribute_name": (parent.name if parent else parent_id),
+                "option_label": (opt.label if opt else opt_id),
+                "price_delta": str(price_delta)
+            })
+
+        return total_delta, details
+
     def post(self, request):
         try:
-            data = json.loads(request.body)
+            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+
             device_uuid = data.get("device_uuid") or request.headers.get("X-Device-UUID")
-
-            print("🟡 [SAVE_CART] Device UUID received:", device_uuid)
-
             if not device_uuid:
                 return Response({"error": "Missing device UUID."}, status=status.HTTP_400_BAD_REQUEST)
 
             product_id = data.get('product_id')
             quantity = int(data.get('quantity', 1))
+            selected_size = data.get("selected_size") or ""
+            selected_attributes = data.get("selected_attributes") or {}
 
             product = get_object_or_404(Product, product_id=product_id)
             _ = get_object_or_404(ProductInventory, product=product)
 
-            cart, _ = Cart.objects.get_or_create(device_uuid=device_uuid, defaults={
-                'cart_id': str(uuid.uuid4())
-            })
+            cart = self._get_primary_cart(device_uuid)
+
+            # Compute attribute price delta and human details
+            attributes_delta, _human_details = self._compute_attributes_delta_and_details(selected_attributes)
+
+            # Base price (use discounted if given, else normal)
+            base_price = Decimal(str(product.discounted_price or product.price or 0))
+            unit_price = base_price + attributes_delta
+
+            # Signature ensures "same selection" merges
+            # Use option IDs to ensure uniqueness even if labels change
+            sig_parts = [f"size:{selected_size}"] + [
+                f"{k}:{v}" for k, v in sorted(selected_attributes.items(), key=lambda x: x[0])
+            ]
+            variant_signature = "|".join(sig_parts)
 
             cart_item, created = CartItem.objects.get_or_create(
                 cart=cart,
                 product=product,
+                variant_signature=variant_signature,
                 defaults={
-                    'item_id': str(uuid.uuid4()),
-                    'quantity': quantity,
-                    'price_per_unit': product.discounted_price,
-                    'subtotal': product.discounted_price * quantity
+                    "item_id": str(uuid.uuid4()),
+                    "quantity": quantity,
+                    "price_per_unit": unit_price,
+                    "subtotal": unit_price * quantity,
+                    "selected_size": selected_size,
+                    "selected_attributes": selected_attributes,
+                    "attributes_price_delta": attributes_delta,
                 }
             )
 
             if not created:
                 cart_item.quantity += quantity
-                cart_item.subtotal = cart_item.price_per_unit * cart_item.quantity
+                cart_item.price_per_unit = unit_price  # keep latest pricing
+                cart_item.attributes_price_delta = attributes_delta
+                cart_item.selected_size = selected_size
+                cart_item.selected_attributes = selected_attributes
+                cart_item.subtotal = unit_price * cart_item.quantity
                 cart_item.save()
 
             return Response({"message": "Cart updated successfully."}, status=status.HTTP_200_OK)
@@ -1604,42 +1765,92 @@ class SaveCartAPIView(APIView):
             print("❌ [SAVE_CART] Error:", str(e))
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-
-# show_cart -> APIView (GET and POST)
 class ShowCartAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
-    def _respond(self, request, device_uuid):
-        print("🟡 [SHOW_CART] Device UUID received:", device_uuid)
+    def _attr_humanize(self, sel: dict):
+        """
+        Return (details_list, delta_sum_decimal).
+        details_list: [{attribute_name, option_label, price_delta}, ...]
+        """
+        details = []
+        total_delta = Decimal("0.00")
+        if not isinstance(sel, dict):
+            return details, total_delta
 
+        for parent_id, opt_id in sel.items():
+            opt = Attribute.objects.filter(attr_id=opt_id).select_related("parent").first()
+            parent = Attribute.objects.filter(attr_id=parent_id).first() if not (opt and opt.parent and opt.parent.attr_id == parent_id) else opt.parent
+
+            price_delta = Decimal(str(opt.price_delta)) if (opt and opt.price_delta is not None) else Decimal("0.00")
+            total_delta += price_delta
+            details.append({
+                "attribute_id": parent_id,
+                "option_id": opt_id,
+                "attribute_name": (parent.name if parent else parent_id),
+                "option_label": (opt.label if opt else opt_id),
+                "price_delta": str(price_delta)
+            })
+        return details, total_delta
+
+    def _respond(self, request, device_uuid):
         if not device_uuid:
             return Response({"error": "Missing device UUID."}, status=status.HTTP_400_BAD_REQUEST)
 
-        cart = Cart.objects.filter(device_uuid=device_uuid).first()
-
+        cart = Cart.objects.filter(device_uuid=device_uuid).order_by("-updated_at", "-created_at").first()
         if not cart:
-            print("🟥 [SHOW_CART] No cart found for device:", device_uuid)
             return Response({"cart_items": []}, status=status.HTTP_200_OK)
 
-        cart_items = CartItem.objects.filter(cart=cart)
+        cart_items = CartItem.objects.filter(cart=cart).select_related("product")
         response_data = []
 
         for item in cart_items:
-            image = Image.objects.filter(linked_table='product', linked_id=item.product.product_id).first()
+            # Image (first linked product image)
+            image_rel = Image.objects.filter(linked_table='product', linked_id=item.product.product_id).first()
+            image_url = request.build_absolute_uri(image_rel.url) if image_rel and getattr(image_rel, "url", None) else None
+            alt_text = getattr(image_rel, "alt_text", "") if image_rel else ""
+
+            # Human-readable selections
+            selections, attrs_delta = self._attr_humanize(item.selected_attributes or {})
+
+            base_price = Decimal(str(item.product.discounted_price or item.product.price or 0))
+            unit_price = base_price + attrs_delta
+            line_total = unit_price * item.quantity
+
+            # e.g. "Product1 (Paper Type: Simple, Size: 49)"
+            selection_bits = []
+            if item.selected_size:
+                selection_bits.append(f"Size: {item.selected_size}")
+            for d in selections:
+                selection_bits.append(f"{d['attribute_name']}: {d['option_label']}")
+            parenthetical = f" ({', '.join(selection_bits)})" if selection_bits else ""
+
+            # e.g. "3 x $(4 + 0 + 5) = $27"
+            # parts: actual base + each delta
+            price_parts = [str(base_price)] + [d["price_delta"] for d in selections if d["price_delta"] not in ("0", "0.0", "0.00")]
+            if not price_parts:
+                price_parts = [str(base_price)]
+            breakdown_str = f"{item.quantity} x $(" + " + ".join(price_parts) + f") = ${line_total}"
+
             response_data.append({
                 "product_id": item.product.product_id,
                 "product_name": item.product.title,
-                "product_image": request.build_absolute_uri(image.url) if image and getattr(image, "url", None) else None,
-                "alt_text": image.alt_text if image else "",
-                "product_price": str(item.product.discounted_price),
-                "product_status": item.product.status,
-                "tax_rate": item.product.tax_rate,
+                "product_image": image_url,
+                "alt_text": alt_text,
                 "quantity": item.quantity,
-                "selected_size": getattr(item, 'selected_size', ''),
-                "subtotal": str(item.subtotal)
+                "selected_size": item.selected_size or "",
+                "selected_attributes": item.selected_attributes or {},  # raw ids mapping
+                "selected_attributes_human": selections,                # names/labels + deltas
+                "price_breakdown": {
+                    "base_price": str(base_price),
+                    "attributes_delta": str(attrs_delta),
+                    "unit_price": str(unit_price),
+                    "quantity": item.quantity,
+                    "line_total": str(line_total),
+                },
+                "summary_line": f"{item.product.title}{parenthetical}: {breakdown_str}",
             })
 
-        print(f"✅ [SHOW_CART] Returning {len(response_data)} item(s) for device {device_uuid}")
         return Response({"cart_items": response_data}, status=status.HTTP_200_OK)
 
     def get(self, request):
@@ -1650,13 +1861,13 @@ class ShowCartAPIView(APIView):
         device_uuid = request.headers.get('X-Device-UUID')
         if not device_uuid:
             try:
-                data = json.loads(request.body)
+                data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
                 device_uuid = data.get("device_uuid")
             except Exception:
                 device_uuid = None
         return self._respond(request, device_uuid)
 
-
+  
 # delete_cart_item -> APIView (POST)
 class DeleteCartItemAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -1689,69 +1900,111 @@ class DeleteCartItemAPIView(APIView):
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
-# save_order -> APIView (POST)
 class SaveOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
+    @transaction.atomic
     def post(self, request):
         try:
-            with transaction.atomic():
-                data = json.loads(request.body)
+            data = json.loads(request.body or "{}")
 
-                user_name = data.get("user_name", "Guest")
-                delivery_data = data["delivery"]
-                email = delivery_data.get("email", "NA")
+            user_name = data.get("user_name", "Guest")
+            delivery_data = data.get("delivery") or {}
+            email = delivery_data.get("email") or None
 
-                order_id = generate_custom_order_id(user_name, email)
-                order = Orders.objects.create(
-                    order_id=order_id,
-                    user_name=user_name,
-                    order_date=timezone.now(),
-                    status=data.get("status", "pending"),
-                    total_price=data["total_price"],
-                    notes=data.get("notes", "")
-                )
+            order_id = generate_custom_order_id(user_name, email or "")
+            order = Orders.objects.create(
+                order_id=order_id,
+                user_name=user_name,
+                order_date=timezone.now(),
+                status=data.get("status", "pending"),
+                total_price=Decimal(str(data.get("total_price", "0"))),
+                notes=data.get("notes", "")
+            )
 
-                for item in data["items"]:
-                    required_fields = ["product_id", "quantity", "unit_price", "total_price"]
-                    for field in required_fields:
-                        if field not in item:
-                            raise Exception(f"Missing {field} in item")
+            items = data.get("items") or []
+            if not isinstance(items, list) or len(items) == 0:
+                return Response({"error": "No items provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-                    product = Product.objects.get(product_id=item["product_id"])
+            for item in items:
+                for field in ["product_id", "quantity", "unit_price", "total_price"]:
+                    if field not in item:
+                        return Response({"error": f"Missing {field} in item"}, status=status.HTTP_400_BAD_REQUEST)
 
-                    OrderItem.objects.create(
-                        item_id=str(uuid.uuid4()),
-                        order=order,
-                        product=product,
-                        quantity=int(item["quantity"]),
-                        unit_price=Decimal(str(item["unit_price"])),
-                        total_price=Decimal(str(item["total_price"]))
-                    )
+                product = get_object_or_404(Product, product_id=item["product_id"])
 
-                OrderDelivery.objects.create(
-                    delivery_id=str(uuid.uuid4()),
+                qty = int(item.get("quantity", 1))
+                unit_price = Decimal(str(item.get("unit_price", "0")))
+                total_price = Decimal(str(item.get("total_price", "0")))
+                attrs_delta = Decimal(str(item.get("attributes_price_delta", 0)))
+
+                # base = unit - delta (unless explicitly provided)
+                if item.get("base_price") is not None:
+                    base_price = Decimal(str(item["base_price"]))
+                else:
+                    base_price = unit_price - attrs_delta
+                    if base_price < 0:
+                        base_price = Decimal("0")
+
+                selected_size = (item.get("selected_size") or "").strip()
+                selected_attributes = item.get("selected_attributes") or {}
+                selected_attributes_human = item.get("selected_attributes_human") or []
+                variant_signature = item.get("variant_signature") or ""
+
+                # store as strings to keep JSON clean/consistent
+                price_breakdown = {
+                    "base_price": str(base_price),
+                    "attributes_delta": str(attrs_delta),
+                    "unit_price": str(unit_price),
+                    "line_total": str(total_price),
+                    "selected_size": selected_size,
+                    "selected_attributes_human": selected_attributes_human,
+                }
+
+                OrderItem.objects.create(
+                    item_id=str(uuid.uuid4()),
                     order=order,
-                    name=delivery_data["name"],
-                    email=email,
-                    phone=delivery_data["phone"],
-                    street_address=delivery_data["street_address"],
-                    city=delivery_data["city"],
-                    zip_code=delivery_data["zip_code"],
-                    instructions=delivery_data.get("instructions", "")
+                    product=product,
+                    quantity=qty,
+                    unit_price=unit_price,
+                    total_price=total_price,
+                    selected_size=selected_size,
+                    selected_attributes=selected_attributes,
+                    selected_attributes_human=selected_attributes_human,
+                    variant_signature=variant_signature,
+                    attributes_price_delta=attrs_delta,
+                    price_breakdown=price_breakdown,
                 )
 
-                return Response({"message": "Order saved successfully", "order_id": order_id}, status=status.HTTP_201_CREATED)
+            # Normalize instructions to a list
+            raw_instructions = delivery_data.get("instructions", [])
+            if isinstance(raw_instructions, str):
+                instructions = [raw_instructions] if raw_instructions.strip() else []
+            elif isinstance(raw_instructions, list):
+                instructions = raw_instructions
+            else:
+                instructions = []
+
+            OrderDelivery.objects.create(
+                delivery_id=str(uuid.uuid4()),
+                order=order,
+                name=delivery_data.get("name", user_name),
+                email=email,  # may be None
+                phone=delivery_data.get("phone", ""),
+                street_address=delivery_data.get("street_address", ""),
+                city=delivery_data.get("city", ""),
+                zip_code=delivery_data.get("zip_code", ""),
+                instructions=instructions,
+            )
+
+            return Response({"message": "Order saved successfully", "order_id": order_id}, status=status.HTTP_201_CREATED)
+
         except Product.DoesNotExist:
             return Response({"error": "One or more products not found"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             print(traceback.format_exc())
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-
-# show_order -> APIView (GET)
 class ShowOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1761,8 +2014,11 @@ class ShowOrderAPIView(APIView):
             orders = Orders.objects.all().order_by('-created_at')
 
             for order in orders:
-                order_items = OrderItem.objects.filter(order=order)
-                item_names = [item.product.title for item in order_items]
+                order_items = (
+                    OrderItem.objects
+                    .filter(order=order)
+                    .select_related('product')
+                )
 
                 try:
                     delivery = OrderDelivery.objects.get(order=order)
@@ -1771,18 +2027,54 @@ class ShowOrderAPIView(APIView):
                         "city": delivery.city,
                         "zip": delivery.zip_code
                     }
-                    email = delivery.email
+                    email = delivery.email or ""
                 except OrderDelivery.DoesNotExist:
-                    address = {}
-                    email = ""
+                    address, email = {}, ""
+
+                items_detail = []
+                for it in order_items:
+                    human = it.selected_attributes_human or []
+                    tokens = []
+                    if it.selected_size:
+                        tokens.append(f"Size: {it.selected_size}")
+                    for d in human:
+                        tokens.append(f"{d.get('attribute_name','')}: {d.get('option_label','')}")
+                    selection_str = ", ".join([t for t in tokens if t])
+
+                    # math parts
+                    try:
+                        base = Decimal(it.price_breakdown.get("base_price", it.unit_price))
+                    except Exception:
+                        base = it.unit_price
+                    deltas = []
+                    for d in human:
+                        try:
+                            deltas.append(Decimal(d.get("price_delta", "0") or "0"))
+                        except Exception:
+                            deltas.append(Decimal("0"))
+
+                    items_detail.append({
+                        "product_id": it.product.product_id,
+                        "product_name": it.product.title,
+                        "quantity": it.quantity,
+                        "unit_price": str(it.unit_price),
+                        "total_price": str(it.total_price),
+                        "selection": selection_str,
+                        "math": {
+                            "base": str(base),
+                            "deltas": [str(x) for x in deltas],
+                        },
+                        "variant_signature": it.variant_signature or "",
+                    })
 
                 orders_data.append({
                     "orderID": order.order_id,
                     "Date": order.order_date.strftime('%Y-%m-%d %H:%M:%S'),
                     "UserName": order.user_name,
                     "item": {
-                        "count": len(item_names),
-                        "names": item_names
+                        "count": len(items_detail),
+                        "names": [x["product_name"] for x in items_detail],
+                        "detail": items_detail,
                     },
                     "total": float(order.total_price),
                     "status": order.status,
@@ -1796,14 +2088,13 @@ class ShowOrderAPIView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-# edit_order -> APIView (PUT)
 class EditOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
+    @transaction.atomic
     def put(self, request):
         try:
-            data = json.loads(request.body)
+            data = json.loads(request.body or "{}")
 
             order_id = data.get("order_id")
             if not order_id:
@@ -1811,42 +2102,89 @@ class EditOrderAPIView(APIView):
 
             order = get_object_or_404(Orders, order_id=order_id)
 
+            # Header
             order.user_name = data.get("user_name", order.user_name)
             order.status = data.get("status", order.status)
-            order.total_price = data.get("total_price", order.total_price)
+            if data.get("total_price") is not None:
+                order.total_price = Decimal(str(data["total_price"]))
             order.notes = data.get("notes", order.notes)
             order.save()
 
+            # Rebuild items
             OrderItem.objects.filter(order=order).delete()
+
             for item in data.get("items", []):
                 product = get_object_or_404(Product, product_id=item["product_id"])
+
+                qty = int(item.get("quantity", 1))
+                unit_price = Decimal(str(item.get("unit_price", "0")))
+                total_price = Decimal(str(item.get("total_price", "0")))
+                attrs_delta = Decimal(str(item.get("attributes_price_delta", 0)))
+
+                if item.get("base_price") is not None:
+                    base_price = Decimal(str(item["base_price"]))
+                else:
+                    base_price = unit_price - attrs_delta
+                    if base_price < 0:
+                        base_price = Decimal("0")
+
+                selected_size = (item.get("selected_size") or "").strip()
+                selected_attributes = item.get("selected_attributes") or {}
+                selected_attributes_human = item.get("selected_attributes_human") or []
+                variant_signature = item.get("variant_signature") or ""
+
+                price_breakdown = {
+                    "base_price": str(base_price),
+                    "attributes_delta": str(attrs_delta),
+                    "unit_price": str(unit_price),
+                    "line_total": str(total_price),
+                    "selected_size": selected_size,
+                    "selected_attributes_human": selected_attributes_human,
+                }
+
                 OrderItem.objects.create(
                     item_id=str(uuid.uuid4()),
                     order=order,
                     product=product,
-                    quantity=item["quantity"],
-                    unit_price=item["unit_price"],
-                    total_price=item["total_price"]
+                    quantity=qty,
+                    unit_price=unit_price,
+                    total_price=total_price,
+                    selected_size=selected_size,
+                    selected_attributes=selected_attributes,
+                    selected_attributes_human=selected_attributes_human,
+                    variant_signature=variant_signature,
+                    attributes_price_delta=attrs_delta,
+                    price_breakdown=price_breakdown,
                 )
 
+            # Delivery upsert
             delivery_data = data.get("delivery")
             if delivery_data:
                 delivery_obj, _ = OrderDelivery.objects.get_or_create(order=order)
+
+                raw_instructions = delivery_data.get("instructions", [])
+                if isinstance(raw_instructions, str):
+                    instructions = [raw_instructions] if raw_instructions.strip() else []
+                elif isinstance(raw_instructions, list):
+                    instructions = raw_instructions
+                else:
+                    instructions = []
+
                 delivery_obj.name = delivery_data.get("name", delivery_obj.name)
                 delivery_obj.email = delivery_data.get("email", delivery_obj.email)
                 delivery_obj.phone = delivery_data.get("phone", delivery_obj.phone)
                 delivery_obj.street_address = delivery_data.get("street_address", delivery_obj.street_address)
                 delivery_obj.city = delivery_data.get("city", delivery_obj.city)
                 delivery_obj.zip_code = delivery_data.get("zip_code", delivery_obj.zip_code)
-                delivery_obj.instructions = delivery_data.get("instructions", delivery_obj.instructions)
+                delivery_obj.instructions = instructions
                 delivery_obj.save()
 
             return Response({"message": "Order updated successfully", "order_id": order_id}, status=status.HTTP_200_OK)
 
         except Exception as e:
+            print(traceback.format_exc())
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
+       
 class ShowAdminAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1873,7 +2211,6 @@ class ShowAdminAPIView(APIView):
         except Exception as e:
             traceback.print_exc()
             return Response({"success": False, "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class SaveAdminAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -1932,7 +2269,6 @@ class SaveAdminAPIView(APIView):
                 "hint": "Check for admin_id collisions or access_pages misconfig"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 class DeleteAdminAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1957,7 +2293,6 @@ class DeleteAdminAPIView(APIView):
         except Exception as e:
             traceback.print_exc()
             return Response({"success": False, "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class AdminLoginAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -1989,10 +2324,7 @@ class AdminLoginAPIView(APIView):
         except Exception as e:
             traceback.print_exc()
             return Response({"success": False, "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-# ---------- Images CRUD ----------
-
+        
 class ShowAllImagesAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -2015,7 +2347,6 @@ class ShowAllImagesAPIView(APIView):
             })
         # keep same shape (list)
         return Response(data, status=status.HTTP_200_OK)
-
 
 class EditImageAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -2046,7 +2377,6 @@ class EditImageAPIView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 class DeleteImageAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -2065,9 +2395,6 @@ class DeleteImageAPIView(APIView):
             return Response({'error': 'Image not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-# ---------- Carousels & Hero ----------
 
 class FirstCarouselAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -2162,7 +2489,6 @@ class FirstCarouselAPIView(APIView):
             print("❌ POST Error:", traceback.format_exc())
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 class SecondCarouselAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -2255,8 +2581,6 @@ class SecondCarouselAPIView(APIView):
         except Exception as e:
             print("❌ POST Error:", traceback.format_exc())
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
 
 class HeroBannerAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -2375,14 +2699,12 @@ class HeroBannerAPIView(APIView):
             print("❌ HeroBanner POST Error:", traceback.format_exc())
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-
 @api_view(['GET'])
 @permission_classes([FrontendOnlyPermission])
 def get_notifications(request):
     notifications = Notification.objects.order_by('-created_at')[:1000]
     serializer = NotificationSerializer(notifications, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
-
 
 @api_view(['POST'])
 @permission_classes([FrontendOnlyPermission])
@@ -2398,7 +2720,6 @@ def update_notification_status(request):
     notification.status = new_status
     notification.save()
     return Response({"message": "Status updated"}, status=status.HTTP_200_OK)
-
 
 @api_view(['POST'])
 @permission_classes([FrontendOnlyPermission])
