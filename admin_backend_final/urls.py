@@ -16,7 +16,6 @@ urlpatterns = [
     path('show-subcategories/', views.ShowSubCategoryAPIView.as_view(), name='show_subcategories'),
     path('update-subcategory-order/', views.UpdateSubCategoryOrderAPIView.as_view(), name='update_subcategory_order'),
     path('update_hidden_status/', views.UpdateHiddenStatusAPIView.as_view(), name='update_hidden_status'),
-    # If this endpoint was in use:
     path('generate-product-id/', views.GenerateProductIdAPIView.as_view(), name='generate_product_id'),
     path("show-product/", views.ShowProductsAPIView.as_view(), name='show-product'),
     path("delete-product/", views.DeleteProductAPIView.as_view(), name='delete-product'),
@@ -29,6 +28,7 @@ urlpatterns = [
     path('show_product_variants/', views.ShowVariantCombinationsAPIView.as_view(), name="show_product_variants"),
     path('edit_product/', views.EditProductAPIView.as_view(), name="edit_product"),
     path("update-product-order/", views.UpdateProductOrderAPIView.as_view(), name="update-product-order"),
+    path('show_product_attributes/', views.ShowProductAttributesAPIView.as_view(), name='show_product_attributes'),
     path('show_nav_items/', views.ShowNavItemsAPIView.as_view(), name='show_nav_items'),
     path('show-user/', views.ShowUserAPIView.as_view(), name='show_users'),
     path('save-user/', views.SaveUserAPIView.as_view(), name='save_user'),
