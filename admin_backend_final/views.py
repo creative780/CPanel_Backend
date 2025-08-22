@@ -39,10 +39,6 @@ from .models import *  # Consider specifying models instead of wildcard import
 from .serializers import NotificationSerializer
 from .permissions import FrontendOnlyPermission
 
-# ---------------------------------------------------------------------
-# Utilities (unchanged)
-# ---------------------------------------------------------------------
-
 def format_datetime(dt):
     return dt.strftime('%d-%B-%Y-%I:%M%p')
 
@@ -1299,27 +1295,35 @@ class ShowProductOtherDetailsAPIView(APIView):
             if not product_id:
                 return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
 
-            images = ProductImage.objects.filter(product_id=product_id).select_related('image')
+            # Look up by your SKU-like string field
+            product = get_object_or_404(Product, product_id=product_id)
+
+            # Fetch through the relation (not by numeric FK)
+            images = ProductImage.objects.filter(product=product).select_related('image')
+
             image_urls = []
             for rel in images:
-                d = format_image_object(rel, request=request)
+                d = format_image_object(rel, request=request)  # consistent with your other view
                 if d:
-                    image_urls.append(d["url"])  # keep the same shape: list[str]
+                    image_urls.append(d["url"])  # list[str]
 
             subcategory_ids = list(
                 ProductSubCategoryMap.objects
-                .filter(product_id=product_id)
+                .filter(product=product)
                 .values_list('subcategory__subcategory_id', flat=True)
             )
 
             data_out = {
-                "images": image_urls,          # list of absolute URLs
+                "images": image_urls,
                 "subcategory_ids": subcategory_ids
             }
             return Response(data_out, status=status.HTTP_200_OK)
 
+        except Http404:
+            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class ShowProductSEOAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -1459,56 +1463,71 @@ class EditProductAPIView(APIView):
 
             product_ids = data.get('product_ids') or []
             if isinstance(product_ids, str):
-                product_ids = [product_ids]  # handle single string
+                product_ids = [product_ids]
 
             if not product_ids:
                 return Response({'error': 'No product_ids provided'}, status=status.HTTP_400_BAD_REQUEST)
 
+            force_replace = bool(data.get('force_replace_images'))
+            incoming_images = data.get('images') or []   # list of base64 data URLs
+
             updated_products = []
 
-            for product_id in product_ids:
-                product = Product.objects.filter(product_id=product_id).first()
-                if not product:
-                    continue  # skip if product not found
+            with transaction.atomic():
+                for product_id in product_ids:
+                    product = Product.objects.filter(product_id=product_id).select_for_update().first()
+                    if not product:
+                        continue
+                    
+                    # --- basic fields ---
+                    product.title = data.get('name', product.title)
+                    product.description = data.get('description', product.description)
+                    product.brand = data.get('brand_title', product.brand)
+                    product.price = float(data.get('price', product.price))
+                    product.discounted_price = float(data.get('discounted_price', product.discounted_price))
+                    product.tax_rate = float(data.get('tax_rate', product.tax_rate))
+                    product.price_calculator = data.get('price_calculator', product.price_calculator)
+                    product.video_url = data.get('video_url', product.video_url)
+                    product.status = data.get('status', product.status)
+                    product.updated_at = timezone.now()
+                    product.save()
 
-                # Update product basic fields if included
-                product.title = data.get('name', product.title)
-                product.description = data.get('description', product.description)
-                product.brand = data.get('brand_title', product.brand)
-                product.price = float(data.get('price', product.price))
-                product.discounted_price = float(data.get('discounted_price', product.discounted_price))
-                product.tax_rate = float(data.get('tax_rate', product.tax_rate))
-                product.price_calculator = data.get('price_calculator', product.price_calculator)
-                product.video_url = data.get('video_url', product.video_url)
-                product.status = data.get('status', product.status)
-                product.updated_at = timezone.now()
-                product.save()
+                    # --- inventory ---
+                    inventory, _ = ProductInventory.objects.get_or_create(
+                        product=product,
+                        defaults={
+                            'inventory_id': f"INV-{product.product_id}",
+                            'stock_quantity': 0,
+                            'low_stock_alert': 0,
+                            'stock_status': 'Out Of Stock',
+                        }
+                    )
+                    if 'quantity' in data:
+                        inventory.stock_quantity = int(data['quantity'])
+                    if 'low_stock_alert' in data:
+                        inventory.low_stock_alert = int(data['low_stock_alert'])
+                    update_stock_status(inventory)
 
-                # Update inventory
-                inventory, _ = ProductInventory.objects.get_or_create(
-                    product=product,
-                    defaults={
-                        'inventory_id': f"INV-{product.product_id}",
-                        'stock_quantity': 0,
-                        'low_stock_alert': 0,
-                        'stock_status': 'Out Of Stock',
-                    }
-                )
+                    # --- images (REPLACED: reuse the correct helper) ---
+                    if force_replace:
+                        # This helper already deletes old Image + ProductImage rows
+                        # and recreates both the files and the through-model mappings.
+                        save_product_images(
+                            {
+                                'images': incoming_images,
+                                'image_alt_text': data.get('image_alt_text', 'Alt-text'),
+                            },
+                            product
+                        )
 
-                if 'quantity' in data:
-                    inventory.stock_quantity = int(data['quantity'])
-
-                if 'low_stock_alert' in data:
-                    inventory.low_stock_alert = int(data['low_stock_alert'])
-
-                update_stock_status(inventory)
-
-                updated_products.append(product.product_id)
+                    updated_products.append(product.product_id)
 
             return Response({'success': True, 'updated': updated_products}, status=status.HTTP_200_OK)
+
         except Exception as e:
             traceback.print_exc()
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 def format_image_object(image_obj, request=None):
     """
