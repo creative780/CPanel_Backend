@@ -1464,21 +1464,31 @@ class EditProductAPIView(APIView):
             product_ids = data.get('product_ids') or []
             if isinstance(product_ids, str):
                 product_ids = [product_ids]
-
             if not product_ids:
                 return Response({'error': 'No product_ids provided'}, status=status.HTTP_400_BAD_REQUEST)
 
             force_replace = bool(data.get('force_replace_images'))
-            incoming_images = data.get('images') or []   # list of base64 data URLs
+            incoming_images_raw = data.get('images') or []
+            # Only treat `images` as real replacements if we actually received base64 data URLs
+            incoming_images = [
+                s for s in incoming_images_raw
+                if isinstance(s, str) and s.startswith('data:image/')
+            ]
+            has_new_images = len(incoming_images) > 0
 
             updated_products = []
 
             with transaction.atomic():
                 for product_id in product_ids:
-                    product = Product.objects.filter(product_id=product_id).select_for_update().first()
+                    product = (
+                        Product.objects
+                        .filter(product_id=product_id)
+                        .select_for_update()
+                        .first()
+                    )
                     if not product:
                         continue
-                    
+
                     # --- basic fields ---
                     product.title = data.get('name', product.title)
                     product.description = data.get('description', product.description)
@@ -1508,17 +1518,23 @@ class EditProductAPIView(APIView):
                         inventory.low_stock_alert = int(data['low_stock_alert'])
                     update_stock_status(inventory)
 
-                    # --- images (REPLACED: reuse the correct helper) ---
-                    if force_replace:
-                        # This helper already deletes old Image + ProductImage rows
-                        # and recreates both the files and the through-model mappings.
+                    # --- keep parity with CREATE for all “details” ---
+                    save_product_seo(data, product)
+                    save_shipping_info(data, product)
+                    save_product_variants(data, product)
+                    save_product_subcategories(data, product)
+                    save_product_attributes(data, product)   # ✅ THIS WAS MISSING
+
+                    # --- images (replace only when there are new base64s) ---
+                    if force_replace and has_new_images:
                         save_product_images(
                             {
                                 'images': incoming_images,
-                                'image_alt_text': data.get('image_alt_text', 'Alt-text'),
+                                'image_alt_text': (data.get('image_alt_text') or 'Alt-text').strip(),
                             },
                             product
                         )
+                    # else: do nothing → existing gallery stays intact
 
                     updated_products.append(product.product_id)
 
