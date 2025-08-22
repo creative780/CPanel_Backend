@@ -25,6 +25,7 @@ from django.utils.text import slugify
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password, check_password
 from django.db import IntegrityError, transaction
+from django.db.models import Prefetch
 
 # Django REST Framework
 from rest_framework import status, permissions
@@ -1383,24 +1384,25 @@ class ShowProductAttributesAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def post(self, request):
+        # robust payload parsing
         try:
             data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
-            product_id = data.get("product_id")
-            if not product_id:
-                return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response({"error": "Invalid JSON body"}, status=status.HTTP_400_BAD_REQUEST)
 
-            product = Product.objects.get(product_id=product_id)
-        except Product.DoesNotExist:
-            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        product_id = data.get("product_id")
+        if not product_id:
+            return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Fetch parents with children in one go
+        # if your Product uses "product_id" (string SKU), keep this:
+        product = get_object_or_404(Product, product_id=product_id)
+        # if the PK is "id" instead, use: product = get_object_or_404(Product, id=product_id)
+
         parents = (
             Attribute.objects
             .filter(product=product, parent__isnull=True)
             .prefetch_related(
-                models.Prefetch(
+                Prefetch(
                     "options",
                     queryset=Attribute.objects.select_related("image").order_by("order", "label")
                 )
@@ -1410,24 +1412,25 @@ class ShowProductAttributesAPIView(APIView):
 
         out = []
         for p in parents:
-            options = []
+            opts = []
             for opt in p.options.all():
-                img_dict = format_image_object(opt.image, request=request) if opt.image else None
-                options.append({
+                img_dict = format_image_object(opt.image, request=request) if getattr(opt, "image", None) else None
+                opts.append({
                     "id": opt.attr_id,
                     "label": opt.label,
-                    "image_id": opt.image.image_id if opt.image else None,
-                    "image_url": img_dict["url"] if img_dict else None,
-                    "price_delta": float(opt.price_delta) if opt.price_delta is not None else None,
+                    "image_id": getattr(opt.image, "image_id", None),
+                    "image_url": (img_dict or {}).get("url"),
+                    "price_delta": float(opt.price_delta) if opt.price_delta is not None else 0.0,
                     "is_default": bool(opt.is_default),
                 })
             out.append({
                 "id": p.attr_id,
                 "name": p.name,
-                "options": options,
+                "options": opts,
             })
-        return Response(out, status=status.HTTP_200_OK)
 
+        return Response(out, status=status.HTTP_200_OK)
+    
 class UpdateProductOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1900,9 +1903,9 @@ class DeleteCartItemAPIView(APIView):
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
 class SaveOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
-
     @transaction.atomic
     def post(self, request):
         try:
