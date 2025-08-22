@@ -9,7 +9,7 @@ from .models import (
     Notification, CallbackRequest,
     HeroBanner, HeroBannerImage,
     DeletedItemsCache, SiteSettings, DashboardSnapshot,
-    ProductImage
+    ProductImage, Attribute
 )
 
 admin.site.register(User)
@@ -22,7 +22,7 @@ admin.site.register(Product)
 admin.site.register(ProductInventory)
 admin.site.register(ProductVariant)
 admin.site.register(VariantCombination)
-
+admin.site.register(Attribute)
 admin.site.register(ShippingInfo)
 admin.site.register(ProductSEO)
 
