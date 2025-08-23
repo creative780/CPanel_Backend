@@ -408,20 +408,20 @@ class ShowOrderAPIView(APIView):
 
     def get(self, request):
         try:
-            orders = list(Orders.objects.all().order_by('-order_date'))
+            # Sort by order_date when present, then id as tiebreaker
+            orders = list(Orders.objects.all().order_by('-order_date', '-id'))
             if not orders:
                 return Response({"orders": []}, status=status.HTTP_200_OK)
 
             # Batch deliveries
             deliveries = {d.order_id: d for d in OrderDelivery.objects.filter(order__in=orders)}
 
-            # Batch items (with product)
+            # Batch items (with product when it exists)
             order_items_qs = (
                 OrderItem.objects
                 .filter(order__in=orders)
                 .select_related('product')
             )
-
             items_by_order = {}
             for it in order_items_qs:
                 items_by_order.setdefault(it.order_id, []).append(it)
@@ -431,6 +431,7 @@ class ShowOrderAPIView(APIView):
                 order_items = items_by_order.get(order.id, [])
                 delivery = deliveries.get(order.id)
 
+                # ---- Safe address/email ----
                 address = {"street": "", "city": "", "zip": ""}
                 email = ""
                 if delivery:
@@ -443,9 +444,22 @@ class ShowOrderAPIView(APIView):
 
                 items_detail = []
                 for it in order_items:
-                    # --- Normalize selected_attributes_human to a list[dict] ---
+                    # ---- Handle missing product rows safely ----
+                    product_obj = getattr(it, "product", None)
+                    if product_obj is None:
+                        # Try to resolve lightly; if still missing, skip the item
+                        # (alternatively, include a placeholder name)
+                        try:
+                            product_obj = Product.objects.only("product_id", "title").filter(pk=it.product_id).first()
+                        except Exception:
+                            product_obj = None
+                    if product_obj is None:
+                        # Skip orphaned rows to avoid 500s
+                        continue
+
+                    # ---- Normalize selected_attributes_human ----
                     human_raw = it.selected_attributes_human
-                    human: list = []
+                    human = []
                     if isinstance(human_raw, list):
                         human = human_raw
                     elif isinstance(human_raw, dict):
@@ -457,14 +471,10 @@ class ShowOrderAPIView(APIView):
                                 human = parsed
                             elif isinstance(parsed, dict):
                                 human = [parsed]
-                            else:
-                                human = []
                         except Exception:
                             human = []
-                    else:
-                        human = []
 
-                    # --- Normalize price_breakdown to a dict ---
+                    # ---- Normalize price_breakdown ----
                     pb_raw = it.price_breakdown
                     pb = {}
                     if isinstance(pb_raw, dict):
@@ -477,22 +487,21 @@ class ShowOrderAPIView(APIView):
                         except Exception:
                             pb = {}
 
+                    # ---- Build selection string safely ----
                     tokens = []
                     if it.selected_size:
                         tokens.append(f"Size: {it.selected_size}")
                     for d in human:
-                        # guard each element
                         if isinstance(d, dict):
                             tokens.append(f"{d.get('attribute_name','')}: {d.get('option_label','')}")
                     selection_str = ", ".join([t for t in tokens if t])
 
-                    # Base price: prefer breakdown, fall back to unit_price
+                    # ---- Base & deltas (safe) ----
                     try:
                         base = Decimal(pb.get("base_price", it.unit_price))
                     except Exception:
                         base = it.unit_price
 
-                    # Deltas: build from human if present
                     deltas = []
                     for d in human:
                         if isinstance(d, dict):
@@ -502,8 +511,8 @@ class ShowOrderAPIView(APIView):
                                 deltas.append(Decimal("0"))
 
                     items_detail.append({
-                        "product_id": it.product.product_id,
-                        "product_name": it.product.title,
+                        "product_id": product_obj.product_id,
+                        "product_name": product_obj.title,
                         "quantity": it.quantity,
                         "unit_price": str(it.unit_price),
                         "total_price": str(it.total_price),
@@ -515,25 +524,35 @@ class ShowOrderAPIView(APIView):
                         "variant_signature": it.variant_signature or "",
                     })
 
+                # ---- Safe dates (some legacy rows might not have order_date) ----
+                safe_dt = getattr(order, "order_date", None)
+                date_str = safe_dt.strftime('%Y-%m-%d %H:%M:%S') if safe_dt else ""
+
+                # ---- Safe total ----
+                try:
+                    total_float = float(order.total_price)
+                except Exception:
+                    total_float = 0.0
+
                 orders_data.append({
                     "orderID": order.order_id,
-                    "Date": order.order_date.strftime('%Y-%m-%d %H:%M:%S'),
+                    "Date": date_str,
                     "UserName": order.user_name,
                     "item": {
                         "count": len(items_detail),
                         "names": [x["product_name"] for x in items_detail],
                         "detail": items_detail,
                     },
-                    "total": float(order.total_price),
+                    "total": total_float,
                     "status": order.status,
                     "Address": address,
                     "email": email,
-                    "order_placed_on": order.order_date.strftime('%Y-%m-%d %H:%M:%S')
+                    "order_placed_on": date_str
                 })
 
             return Response({"orders": orders_data}, status=status.HTTP_200_OK)
         except Exception as e:
-            # Keep generic 500 body, but you can temporarily log for local debugging
+            # Uncomment locally if you want the traceback in your console:
             # print(traceback.format_exc())
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
