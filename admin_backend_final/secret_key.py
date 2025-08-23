@@ -1,1 +1,0 @@
-groq_secret_key = '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'
