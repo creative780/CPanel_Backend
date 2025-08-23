@@ -18,7 +18,7 @@ from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.core.exceptions import ObjectDoesNotExist
 
-from admin_backend_final.utilities import format_image_object, generate_admin_id
+from .utilities import format_image_object, generate_admin_id
 # Local Imports
 from .models import *  # Consider specifying models instead of wildcard import
 from .serializers import NotificationSerializer
