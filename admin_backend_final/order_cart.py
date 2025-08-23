@@ -408,151 +408,155 @@ class ShowOrderAPIView(APIView):
 
     def get(self, request):
         try:
-            # Sort by order_date when present, then id as tiebreaker
+            # Safe ordering: fall back to id if order_date is NULL
             orders = list(Orders.objects.all().order_by('-order_date', '-id'))
             if not orders:
                 return Response({"orders": []}, status=status.HTTP_200_OK)
 
-            # Batch deliveries
+            # Batch fetch related rows
             deliveries = {d.order_id: d for d in OrderDelivery.objects.filter(order__in=orders)}
-
-            # Batch items (with product when it exists)
-            order_items_qs = (
+            items_qs = (
                 OrderItem.objects
                 .filter(order__in=orders)
                 .select_related('product')
             )
+
+            # Group items by order PK
             items_by_order = {}
-            for it in order_items_qs:
+            for it in items_qs:
                 items_by_order.setdefault(it.order_id, []).append(it)
 
             orders_data = []
             for order in orders:
-                order_items = items_by_order.get(order.id, [])
-                delivery = deliveries.get(order.id)
-
-                # ---- Safe address/email ----
-                address = {"street": "", "city": "", "zip": ""}
-                email = ""
-                if delivery:
-                    address = {
-                        "street": delivery.street_address,
-                        "city": delivery.city,
-                        "zip": delivery.zip_code
-                    }
-                    email = delivery.email or ""
-
-                items_detail = []
-                for it in order_items:
-                    # ---- Handle missing product rows safely ----
-                    product_obj = getattr(it, "product", None)
-                    if product_obj is None:
-                        # Try to resolve lightly; if still missing, skip the item
-                        # (alternatively, include a placeholder name)
-                        try:
-                            product_obj = Product.objects.only("product_id", "title").filter(pk=it.product_id).first()
-                        except Exception:
-                            product_obj = None
-                    if product_obj is None:
-                        # Skip orphaned rows to avoid 500s
-                        continue
-
-                    # ---- Normalize selected_attributes_human ----
-                    human_raw = it.selected_attributes_human
-                    human = []
-                    if isinstance(human_raw, list):
-                        human = human_raw
-                    elif isinstance(human_raw, dict):
-                        human = [human_raw]
-                    elif isinstance(human_raw, str):
-                        try:
-                            parsed = json.loads(human_raw)
-                            if isinstance(parsed, list):
-                                human = parsed
-                            elif isinstance(parsed, dict):
-                                human = [parsed]
-                        except Exception:
-                            human = []
-
-                    # ---- Normalize price_breakdown ----
-                    pb_raw = it.price_breakdown
-                    pb = {}
-                    if isinstance(pb_raw, dict):
-                        pb = pb_raw
-                    elif isinstance(pb_raw, str):
-                        try:
-                            parsed_pb = json.loads(pb_raw)
-                            if isinstance(parsed_pb, dict):
-                                pb = parsed_pb
-                        except Exception:
-                            pb = {}
-
-                    # ---- Build selection string safely ----
-                    tokens = []
-                    if it.selected_size:
-                        tokens.append(f"Size: {it.selected_size}")
-                    for d in human:
-                        if isinstance(d, dict):
-                            tokens.append(f"{d.get('attribute_name','')}: {d.get('option_label','')}")
-                    selection_str = ", ".join([t for t in tokens if t])
-
-                    # ---- Base & deltas (safe) ----
-                    try:
-                        base = Decimal(pb.get("base_price", it.unit_price))
-                    except Exception:
-                        base = it.unit_price
-
-                    deltas = []
-                    for d in human:
-                        if isinstance(d, dict):
-                            try:
-                                deltas.append(Decimal(d.get("price_delta", "0") or "0"))
-                            except Exception:
-                                deltas.append(Decimal("0"))
-
-                    items_detail.append({
-                        "product_id": product_obj.product_id,
-                        "product_name": product_obj.title,
-                        "quantity": it.quantity,
-                        "unit_price": str(it.unit_price),
-                        "total_price": str(it.total_price),
-                        "selection": selection_str,
-                        "math": {
-                            "base": str(base),
-                            "deltas": [str(x) for x in deltas],
-                        },
-                        "variant_signature": it.variant_signature or "",
-                    })
-
-                # ---- Safe dates (some legacy rows might not have order_date) ----
-                safe_dt = getattr(order, "order_date", None)
-                date_str = safe_dt.strftime('%Y-%m-%d %H:%M:%S') if safe_dt else ""
-
-                # ---- Safe total ----
                 try:
-                    total_float = float(order.total_price)
-                except Exception:
-                    total_float = 0.0
+                    order_items = items_by_order.get(order.id, [])
+                    delivery = deliveries.get(order.id)
 
-                orders_data.append({
-                    "orderID": order.order_id,
-                    "Date": date_str,
-                    "UserName": order.user_name,
-                    "item": {
-                        "count": len(items_detail),
-                        "names": [x["product_name"] for x in items_detail],
-                        "detail": items_detail,
-                    },
-                    "total": total_float,
-                    "status": order.status,
-                    "Address": address,
-                    "email": email,
-                    "order_placed_on": date_str
-                })
+                    # ---- address/email: fully optional-safe ----
+                    address = {"street": "", "city": "", "zip": ""}
+                    email = ""
+                    if delivery:
+                        address = {
+                            "street": getattr(delivery, "street_address", "") or "",
+                            "city": getattr(delivery, "city", "") or "",
+                            "zip": getattr(delivery, "zip_code", "") or "",
+                        }
+                        email = getattr(delivery, "email", "") or ""
+
+                    items_detail = []
+                    for it in order_items:
+                        try:
+                            # product may be missing; skip orphaned items
+                            prod = getattr(it, "product", None)
+                            if prod is None:
+                                # best-effort lazy resolve; if still None, skip
+                                prod = Product.objects.only("product_id", "title").filter(pk=getattr(it, "product_id", None)).first()
+                                if prod is None:
+                                    continue
+
+                            # ---- normalize selected_attributes_human ----
+                            human_raw = getattr(it, "selected_attributes_human", None)
+                            human_list = []
+                            if isinstance(human_raw, list):
+                                human_list = human_raw
+                            elif isinstance(human_raw, dict):
+                                human_list = [human_raw]
+                            elif isinstance(human_raw, str):
+                                try:
+                                    parsed = json.loads(human_raw)
+                                    if isinstance(parsed, list):
+                                        human_list = parsed
+                                    elif isinstance(parsed, dict):
+                                        human_list = [parsed]
+                                except Exception:
+                                    human_list = []
+
+                            # ---- normalize price_breakdown ----
+                            pb_raw = getattr(it, "price_breakdown", None)
+                            pb = {}
+                            if isinstance(pb_raw, dict):
+                                pb = pb_raw
+                            elif isinstance(pb_raw, str):
+                                try:
+                                    parsed_pb = json.loads(pb_raw)
+                                    if isinstance(parsed_pb, dict):
+                                        pb = parsed_pb
+                                except Exception:
+                                    pb = {}
+
+                            # selection string
+                            tokens = []
+                            sel_size = (getattr(it, "selected_size", "") or "").strip()
+                            if sel_size:
+                                tokens.append(f"Size: {sel_size}")
+                            for d in human_list:
+                                if isinstance(d, dict):
+                                    an = d.get("attribute_name", "") or ""
+                                    ol = d.get("option_label", "") or ""
+                                    if an or ol:
+                                        tokens.append(f"{an}: {ol}")
+                            selection_str = ", ".join(tokens)
+
+                            # math
+                            try:
+                                base = Decimal(pb.get("base_price", getattr(it, "unit_price", "0")))
+                            except Exception:
+                                base = getattr(it, "unit_price", Decimal("0"))
+                            deltas = []
+                            for d in human_list:
+                                if isinstance(d, dict):
+                                    try:
+                                        deltas.append(Decimal(d.get("price_delta", "0") or "0"))
+                                    except Exception:
+                                        deltas.append(Decimal("0"))
+
+                            items_detail.append({
+                                "product_id": getattr(prod, "product_id", ""),
+                                "product_name": getattr(prod, "title", "") or "",
+                                "quantity": getattr(it, "quantity", 0) or 0,
+                                "unit_price": str(getattr(it, "unit_price", Decimal("0"))),
+                                "total_price": str(getattr(it, "total_price", Decimal("0"))),
+                                "selection": selection_str,
+                                "math": {
+                                    "base": str(base),
+                                    "deltas": [str(x) for x in deltas],
+                                },
+                                "variant_signature": getattr(it, "variant_signature", "") or "",
+                            })
+                        except Exception:
+                            # skip only the bad line item, not the entire order
+                            continue
+
+                    # dates & totals safe
+                    odt = getattr(order, "order_date", None)
+                    date_str = odt.strftime('%Y-%m-%d %H:%M:%S') if hasattr(odt, "strftime") else ""
+                    try:
+                        total_float = float(getattr(order, "total_price", 0) or 0)
+                    except Exception:
+                        total_float = 0.0
+
+                    orders_data.append({
+                        "orderID": getattr(order, "order_id", "") or "",
+                        "Date": date_str,
+                        "UserName": getattr(order, "user_name", "") or "",
+                        "item": {
+                            "count": len(items_detail),
+                            "names": [x["product_name"] for x in items_detail],
+                            "detail": items_detail,
+                        },
+                        "total": total_float,
+                        "status": getattr(order, "status", "") or "",
+                        "Address": address,
+                        "email": email,
+                        "order_placed_on": date_str,
+                    })
+                except Exception:
+                    # skip only the bad order, keep the rest flowing
+                    continue
 
             return Response({"orders": orders_data}, status=status.HTTP_200_OK)
         except Exception as e:
-            # Uncomment locally if you want the traceback in your console:
+            # For local debugging you can uncomment:
             # print(traceback.format_exc())
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
