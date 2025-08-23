@@ -408,25 +408,25 @@ class ShowOrderAPIView(APIView):
 
     def get(self, request):
         try:
-            orders = list(Orders.objects.all().order_by('-created_at'))
+            # ✅ Use order_date (not created_at) to avoid 500s
+            orders = list(Orders.objects.all().order_by('-order_date'))
             if not orders:
                 return Response({"orders": []}, status=status.HTTP_200_OK)
 
-            # Batch deliveries
             deliveries = {d.order_id: d for d in OrderDelivery.objects.filter(order__in=orders)}
-            # Batch items
             order_items_qs = (
                 OrderItem.objects
                 .filter(order__in=orders)
                 .select_related('product')
             )
+
             items_by_order = {}
             for it in order_items_qs:
                 items_by_order.setdefault(it.order_id, []).append(it)
 
             orders_data = []
             for order in orders:
-                order_items = items_by_order.get(order.id, [])  # PK grouping
+                order_items = items_by_order.get(order.id, [])
                 delivery = deliveries.get(order.id)
 
                 address = {"street": "", "city": "", "zip": ""}
@@ -488,13 +488,13 @@ class ShowOrderAPIView(APIView):
                     "status": order.status,
                     "Address": address,
                     "email": email,
-                    "order_placed_on": order.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                    # ✅ Safe: fall back to order_date for "placed on"
+                    "order_placed_on": order.order_date.strftime('%Y-%m-%d %H:%M:%S')
                 })
 
             return Response({"orders": orders_data}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class EditOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
