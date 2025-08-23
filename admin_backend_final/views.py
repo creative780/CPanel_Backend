@@ -4,8 +4,10 @@ import re
 import json
 import uuid
 import base64
+import hashlib
 import traceback
 from io import BytesIO
+from collections import defaultdict
 from decimal import Decimal
 from datetime import datetime
 
@@ -25,7 +27,7 @@ from django.utils.text import slugify
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password, check_password
 from django.db import IntegrityError, transaction
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Count
 
 # Django REST Framework
 from rest_framework import status, permissions
@@ -33,11 +35,23 @@ from rest_framework.decorators import api_view, permission_classes, parser_class
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from django.core.exceptions import ObjectDoesNotExist
+
 # Local Imports
 from .models import *  # Consider specifying models instead of wildcard import
 from .serializers import NotificationSerializer
 from .permissions import FrontendOnlyPermission
+
+
+# ---------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------
+
+def parse_json_body(request):
+    """Safe JSON body parser used across endpoints."""
+    try:
+        return request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+    except Exception:
+        return {}
 
 def format_datetime(dt):
     return dt.strftime('%d-%B-%Y-%I:%M%p')
@@ -211,6 +225,7 @@ def save_image(file_or_base64, alt_text="Alt-text", tags="", linked_table="", li
         print("Image save error:", str(e))
         return None
 
+
 # ---------------------------------------------------------------------
 # API Views (same input/output semantics as your original functions)
 # ---------------------------------------------------------------------
@@ -219,11 +234,7 @@ class GenerateProductIdAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def post(self, request):
-        try:
-            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
-        except Exception:
-            data = {}
-
+        data = parse_json_body(request)
         name = data.get('name')
         subcat_id = data.get('subcategory_id')
 
@@ -248,8 +259,6 @@ class SaveImageAPIView(APIView):
         """
         Wraps save_image() so frontend can POST either multipart (image file)
         or JSON with base64 data URL in 'image', and optional alt_text, tags, linked_*.
-        Returns success + basic image metadata. (If you had a different response earlier,
-        adjust below to match; defaults here are sensible.)
         """
         data = request.data if request.content_type and 'application/json' in request.content_type else request.POST
         files = request.FILES
@@ -294,10 +303,7 @@ class SaveCategoryAPIView(APIView):
     def post(self, request):
         # Keep existing behavior: support both JSON and multipart
         if request.content_type and 'application/json' in request.content_type:
-            try:
-                data = request.data if isinstance(request.data, dict) else json.loads(request.body.decode('utf-8') or '{}')
-            except Exception:
-                data = {}
+            data = parse_json_body(request)
             files = {}
         else:
             data = request.POST
@@ -315,7 +321,7 @@ class SaveCategoryAPIView(APIView):
         now = timezone.now()
         order = Category.objects.count() + 1
 
-        # NEW: optional caption/description
+        # optional caption/description
         caption = (data.get('caption') or '').strip() or None
         description = (data.get('description') or '').strip() or None
 
@@ -360,45 +366,72 @@ class SaveCategoryAPIView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
+# ---------- OPTIMIZED ----------
 class ShowCategoryAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def get(self, request):
-        categories = Category.objects.all().order_by('order')
-        result = []
+        # 1) Flat categories (values)
+        cats = list(
+            Category.objects.order_by('order')
+            .values('id', 'category_id', 'name', 'status', 'order', 'caption', 'description')
+        )
+        if not cats:
+            return Response([], status=status.HTTP_200_OK)
+        cat_ids = [c['id'] for c in cats]
 
-        for cat in categories:
-            # Subcategories mapped to this category
-            subcat_maps = CategorySubCategoryMap.objects.filter(category=cat).select_related('subcategory')
-            subcats = [m.subcategory for m in subcat_maps]
-            subcat_names = [s.name for s in subcats]
+        # 2) First image per category (single scan)
+        first_img_by_cat = {}
+        for rel in (CategoryImage.objects
+                    .filter(category_id__in=cat_ids)
+                    .select_related('image')
+                    .order_by('category_id', 'id')):
+            cid = rel.category_id
+            if cid not in first_img_by_cat and rel.image:
+                d = format_image_object(rel, request=request)
+                if d:
+                    first_img_by_cat[cid] = d
 
-            # Product count across those subcategories
-            product_count = ProductSubCategoryMap.objects.filter(subcategory__in=subcats).count()
+        # 3) Category → Subcategories (names + ids)
+        cat_to_subids = defaultdict(list)
+        cat_to_subnames = defaultdict(list)
+        for row in (CategorySubCategoryMap.objects
+                    .filter(category_id__in=cat_ids)
+                    .select_related('subcategory')
+                    .values('category_id', 'subcategory_id', 'subcategory__name')):
+            cat_to_subids[row['category_id']].append(row['subcategory_id'])
+            cat_to_subnames[row['category_id']].append(row['subcategory__name'])
 
-            # First image (if any) + its alt text
-            rel = cat.images.select_related('image').first()
-            img = rel.image if rel else None
-            img_url = img.url if img else None
-            alt_text = img.alt_text if img else ""
+        # 4) Product counts per subcategory aggregated to category
+        sub_ids = {sid for sids in cat_to_subids.values() for sid in sids}
+        prod_count_by_sub = {}
+        if sub_ids:
+            for row in (ProductSubCategoryMap.objects
+                        .filter(subcategory_id__in=sub_ids)
+                        .values('subcategory_id')
+                        .annotate(c=Count('id'))):
+                prod_count_by_sub[row['subcategory_id']] = row['c']
 
-            result.append({
-                "id": cat.category_id,
-                "name": cat.name,
-                "image": img_url,
-                "imageAlt": alt_text,
-                "subcategories": {
-                    "names": subcat_names or None,
-                    "count": len(subcat_names) or 0
-                },
-                "products": product_count or 0,
-                "status": cat.status,
-                "order": cat.order,
-                "caption": cat.caption,
-                "description": cat.description,
+        # 5) Assemble output
+        out = []
+        for c in cats:
+            sub_names = cat_to_subnames.get(c['id'], [])
+            prod_total = sum(prod_count_by_sub.get(sid, 0) for sid in cat_to_subids.get(c['id'], []))
+            img = first_img_by_cat.get(c['id'], {})
+            out.append({
+                "id": c["category_id"],
+                "name": c["name"],
+                "image": img.get("url"),
+                "imageAlt": img.get("alt_text", ""),
+                "subcategories": {"names": sub_names or None, "count": len(sub_names)},
+                "products": prod_total,
+                "status": c["status"],
+                "order": c["order"],
+                "caption": c["caption"],
+                "description": c["description"],
             })
-
-        return Response(result, status=status.HTTP_200_OK)
+        return Response(out, status=status.HTTP_200_OK)
+# ------------------------------
 
 
 class EditCategoryAPIView(APIView):
@@ -510,18 +543,24 @@ class DeleteCategoryAPIView(APIView):
         return Response({'success': True, 'message': 'Selected categories deleted'}, status=status.HTTP_200_OK)
 
 
+# ---------- OPTIMIZED (bulk_update) ----------
 class UpdateCategoryOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def post(self, request):
         try:
-            data = json.loads(request.body)
+            data = parse_json_body(request)
             ordered = data.get("ordered_categories", [])
-            for item in ordered:
-                Category.objects.filter(category_id=item["id"]).update(order=item["order"])
+            ids = [x["id"] for x in ordered]
+            desired = {x["id"]: x["order"] for x in ordered}
+            objs = list(Category.objects.filter(category_id__in=ids))
+            for o in objs:
+                o.order = desired.get(o.category_id, o.order)
+            Category.objects.bulk_update(objs, ['order'])
             return Response({'success': True}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+# ------------------------------------------------
 
 
 class SaveSubCategoryAPIView(APIView):
@@ -598,33 +637,64 @@ class SaveSubCategoryAPIView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
+# ---------- OPTIMIZED ----------
 class ShowSubCategoryAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def get(self, request):
-        subcategories = SubCategory.objects.all().order_by("order")
-        result = []
-        for sub in subcategories:
-            category_maps = CategorySubCategoryMap.objects.filter(subcategory=sub).select_related('category')
-            category_names = [m.category.name for m in category_maps]
-            product_count = ProductSubCategoryMap.objects.filter(subcategory=sub).count()
+        subs = list(
+            SubCategory.objects.order_by('order')
+            .values('id', 'subcategory_id', 'name', 'status', 'caption', 'description', 'order')
+        )
+        if not subs:
+            return Response([], status=status.HTTP_200_OK)
 
-            img_rel = sub.images.select_related('image').first()
-            img = img_rel.image if img_rel else None
+        sub_ids = [s['id'] for s in subs]
 
-            result.append({
-                "id": sub.subcategory_id,
-                "name": sub.name,
-                "image": img.url if img else None,
-                "imageAlt": img.alt_text if img else "",
-                "categories": category_names or None,
-                "products": product_count or 0,
-                "status": sub.status,
-                "caption": sub.caption,
-                "description": sub.description,
-                "order": sub.order,
+        # First image per subcategory
+        first_img_by_sub = {}
+        for rel in (SubCategoryImage.objects
+                    .filter(subcategory_id__in=sub_ids)
+                    .select_related('image')
+                    .order_by('subcategory_id', 'id')):
+            sid = rel.subcategory_id
+            if sid not in first_img_by_sub and rel.image:
+                d = format_image_object(rel, request=request)
+                if d:
+                    first_img_by_sub[sid] = d
+
+        # Subcategory → Categories
+        sub_to_catnames = defaultdict(list)
+        for row in (CategorySubCategoryMap.objects
+                    .filter(subcategory_id__in=sub_ids)
+                    .select_related('category')
+                    .values('subcategory_id', 'category__name')):
+            sub_to_catnames[row['subcategory_id']].append(row['category__name'])
+
+        # Product count per sub
+        prod_count_by_sub = {row['subcategory_id']: row['c'] for row in
+                             ProductSubCategoryMap.objects
+                             .filter(subcategory_id__in=sub_ids)
+                             .values('subcategory_id')
+                             .annotate(c=Count('id'))}
+
+        out = []
+        for s in subs:
+            img = first_img_by_sub.get(s['id'], {})
+            out.append({
+                "id": s["subcategory_id"],
+                "name": s["name"],
+                "image": img.get("url"),
+                "imageAlt": img.get("alt_text", ""),
+                "categories": sub_to_catnames.get(s['id']) or None,
+                "products": prod_count_by_sub.get(s['id'], 0),
+                "status": s["status"],
+                "caption": s["caption"],
+                "description": s["description"],
+                "order": s["order"],
             })
-        return Response(result, status=status.HTTP_200_OK)
+        return Response(out, status=status.HTTP_200_OK)
+# ------------------------------
 
 
 class EditSubCategoryAPIView(APIView):
@@ -695,6 +765,7 @@ class EditSubCategoryAPIView(APIView):
 
         return Response({'success': True, 'message': 'SubCategory updated'}, status=status.HTTP_200_OK)
 
+
 class DeleteSubCategoryAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -755,18 +826,24 @@ class DeleteSubCategoryAPIView(APIView):
             return Response({'error': f'Unexpected error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+# ---------- OPTIMIZED (bulk_update) ----------
 class UpdateSubCategoryOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def post(self, request):
         try:
-            data = json.loads(request.body)
+            data = parse_json_body(request)
             ordered = data.get("ordered_subcategories", [])
-            for item in ordered:
-                SubCategory.objects.filter(subcategory_id=item["id"]).update(order=item["order"])
+            ids = [x["id"] for x in ordered]
+            desired = {x["id"]: x["order"] for x in ordered}
+            objs = list(SubCategory.objects.filter(subcategory_id__in=ids))
+            for o in objs:
+                o.order = desired.get(o.subcategory_id, o.order)
+            SubCategory.objects.bulk_update(objs, ['order'])
             return Response({'success': True}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+# ------------------------------------------------
 
 
 class UpdateHiddenStatusAPIView(APIView):
@@ -796,6 +873,9 @@ class UpdateHiddenStatusAPIView(APIView):
 
     def get(self, request):
         return Response({'error': 'Invalid request method'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+# ------------------ Product helpers (unchanged) ------------------
 
 def save_product_basic(data, is_edit=False, existing_product=None):
     name = data.get('name')
@@ -1057,7 +1137,8 @@ def save_product_attributes(data, product):
                 is_default=bool(opt.get("is_default")),
                 order=o_idx,
             )
-            
+
+
 class SaveProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1066,7 +1147,7 @@ class SaveProductAPIView(APIView):
             return Response({'error': 'Invalid request method'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+            data = parse_json_body(request)
             product = save_product_basic(data)
             save_product_seo(data, product)
             save_shipping_info(data, product)
@@ -1079,6 +1160,7 @@ class SaveProductAPIView(APIView):
             traceback.print_exc()
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class DeleteProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1087,9 +1169,9 @@ class DeleteProductAPIView(APIView):
             return Response({'error': 'Invalid request method'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+            data = parse_json_body(request)
             ids = data.get('ids', [])
-            confirm = data.get('confirm', False)  # kept for parity, not used in original delete flow
+            confirm = data.get('confirm', False)  # kept for parity
 
             if not ids:
                 return Response({'error': 'No product IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1114,69 +1196,85 @@ class DeleteProductAPIView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+# ---------- OPTIMIZED ----------
 class ShowProductsAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def get(self, request):
-        products = Product.objects.all().order_by('order')
-        product_list = []
+        prows = list(
+            Product.objects.order_by('order')
+            .values('id', 'product_id', 'title', 'price')
+        )
+        if not prows:
+            return Response([], status=status.HTTP_200_OK)
 
-        for product in products:
-            # first image (through-model)
-            image_rel = (
-                ProductImage.objects
-                .filter(product=product)
-                .select_related('image')
-                .first()
-            )
-            img_dict = format_image_object(image_rel, request=request)
-            image_url = img_dict["url"] if img_dict else ""
+        pks = [r['id'] for r in prows]
 
-            subcategory_map = (
-                ProductSubCategoryMap.objects
-                .filter(product=product)
-                .select_related('subcategory')
-                .first()
-            )
-            subcategory_data = {
-                "id": subcategory_map.subcategory.subcategory_id if subcategory_map else None,
-                "name": subcategory_map.subcategory.name if subcategory_map else None,
-            }
+        # First image per product
+        first_img = {}
+        for rel in (ProductImage.objects
+                    .filter(product_id__in=pks)
+                    .select_related('image')
+                    .order_by('product_id', 'id')):
+            pid = rel.product_id
+            if pid not in first_img and rel.image:
+                d = format_image_object(rel, request=request)
+                if d:
+                    first_img[pid] = d["url"]
 
-            try:
-                inventory = ProductInventory.objects.get(product=product)
-                stock_status = inventory.stock_status
-                stock_quantity = inventory.stock_quantity
-            except ProductInventory.DoesNotExist:
-                stock_status = None
-                stock_quantity = None
+        # First subcategory per product
+        first_sub = {}
+        for row in (ProductSubCategoryMap.objects
+                    .filter(product_id__in=pks)
+                    .select_related('subcategory')
+                    .values('product_id', 'subcategory__subcategory_id', 'subcategory__name')):
+            if row['product_id'] not in first_sub:
+                first_sub[row['product_id']] = {
+                    "id": row['subcategory__subcategory_id'],
+                    "name": row['subcategory__name']
+                }
 
-            variants = ProductVariant.objects.filter(product=product)
-            printing_methods = set()
-            for variant in variants:
-                methods = variant.printing_methods or []
-                if isinstance(methods, list):
-                    printing_methods.update(methods)
+        # Inventory in one go
+        inv = {r['product_id']: r for r in
+               ProductInventory.objects.filter(product_id__in=pks)
+               .values('product_id', 'stock_status', 'stock_quantity')}
 
-            product_list.append({
-                "id": product.product_id,
-                "name": product.title,
-                "image": image_url,  # string URL
-                "subcategory": subcategory_data,
-                "stock_status": stock_status,
-                "stock_quantity": stock_quantity,
-                "price": str(product.price),
-                "printing_methods": list(printing_methods),
+        # Printing methods aggregated
+        methods = defaultdict(set)
+        for r in (ProductVariant.objects
+                  .filter(product_id__in=pks)
+                  .values('product_id', 'printing_methods')):
+            arr = r['printing_methods']
+            if isinstance(arr, str):
+                methods[r['product_id']].add(arr)
+            elif isinstance(arr, list):
+                methods[r['product_id']].update(arr or [])
+
+        out = []
+        for r in prows:
+            pk = r['id']
+            invr = inv.get(pk, {})
+            out.append({
+                "id": r["product_id"],
+                "name": r["title"],
+                "image": first_img.get(pk, ""),
+                "subcategory": first_sub.get(pk, {"id": None, "name": None}),
+                "stock_status": invr.get("stock_status"),
+                "stock_quantity": invr.get("stock_quantity"),
+                "price": str(r["price"]),
+                "printing_methods": sorted(methods.get(pk, set())),
             })
+        return Response(out, status=status.HTTP_200_OK)
+# ------------------------------
 
-        return Response(product_list, status=status.HTTP_200_OK)
 
 class ShowSpecificProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def post(self, request):
         try:
-            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+            data = parse_json_body(request)
             product_id = data.get('product_id')
             if not product_id:
                 return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1221,12 +1319,13 @@ class ShowSpecificProductAPIView(APIView):
 
         return Response(response, status=status.HTTP_200_OK)
 
+
 class ShowProductVariantAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def post(self, request):
         try:
-            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+            data = parse_json_body(request)
             product_id = data.get('product_id')
             if not product_id:
                 return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1262,17 +1361,20 @@ class ShowProductVariantAPIView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+# ---------- FIXED LOOKUP ----------
 class ShowProductShippingInfoAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def post(self, request):
         try:
-            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+            data = parse_json_body(request)
             product_id = data.get('product_id')
             if not product_id:
                 return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
 
-            shipping = ShippingInfo.objects.get(product_id=product_id)
+            # Fix: resolve by relation to public product_id
+            shipping = ShippingInfo.objects.get(product__product_id=product_id)
 
             data_out = {
                 "shipping_class": shipping.shipping_class,
@@ -1284,13 +1386,15 @@ class ShowProductShippingInfoAPIView(APIView):
             return Response({}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+# ----------------------------------
+
 
 class ShowProductOtherDetailsAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def post(self, request):
         try:
-            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+            data = parse_json_body(request)
             product_id = data.get("product_id")
             if not product_id:
                 return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1330,7 +1434,7 @@ class ShowProductSEOAPIView(APIView):
 
     def post(self, request):
         try:
-            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+            data = parse_json_body(request)
             product_id = data.get('product_id')
             if not product_id:
                 return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1358,12 +1462,13 @@ class ShowProductSEOAPIView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class ShowVariantCombinationsAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def post(self, request):
         try:
-            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+            data = parse_json_body(request)
             product_id = data.get("product_id")
             if not product_id:
                 return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1384,13 +1489,14 @@ class ShowVariantCombinationsAPIView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class ShowProductAttributesAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def post(self, request):
         # robust payload parsing
         try:
-            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+            data = parse_json_body(request)
         except Exception:
             return Response({"error": "Invalid JSON body"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1400,7 +1506,6 @@ class ShowProductAttributesAPIView(APIView):
 
         # if your Product uses "product_id" (string SKU), keep this:
         product = get_object_or_404(Product, product_id=product_id)
-        # if the PK is "id" instead, use: product = get_object_or_404(Product, id=product_id)
 
         parents = (
             Attribute.objects
@@ -1434,32 +1539,34 @@ class ShowProductAttributesAPIView(APIView):
             })
 
         return Response(out, status=status.HTTP_200_OK)
-    
+
+
+# ---------- OPTIMIZED (bulk_update) ----------
 class UpdateProductOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def post(self, request):
         try:
-            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+            data = parse_json_body(request)
             updates = data.get("products", [])
-
-            for idx, item in enumerate(updates):
-                product_id = item.get("id")
-                product = Product.objects.filter(product_id=product_id).first()
-                if product:
-                    product.order = idx
-                    product.save()
-
+            ids = [x["id"] for x in updates]
+            desired = {x["id"]: idx for idx, x in enumerate(updates)}
+            objs = list(Product.objects.filter(product_id__in=ids))
+            for o in objs:
+                o.order = desired.get(o.product_id, o.order)
+            Product.objects.bulk_update(objs, ['order'])
             return Response({"success": True}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+# ------------------------------------------------
+
 
 class EditProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def post(self, request):
         try:
-            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+            data = parse_json_body(request)
 
             product_ids = data.get('product_ids') or []
             if isinstance(product_ids, str):
@@ -1523,7 +1630,7 @@ class EditProductAPIView(APIView):
                     save_shipping_info(data, product)
                     save_product_variants(data, product)
                     save_product_subcategories(data, product)
-                    save_product_attributes(data, product)   # ✅ THIS WAS MISSING
+                    save_product_attributes(data, product)
 
                     # --- images (replace only when there are new base64s) ---
                     if force_replace and has_new_images:
@@ -1573,71 +1680,133 @@ def format_image_object(image_obj, request=None):
         "url": url,
         "alt_text": getattr(img, "alt_text", "") or "Image"
     }
-  
+
+
+# ---------- OPTIMIZED ----------
 class ShowNavItemsAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def get(self, request):
-        data = []
+        # Visible categories
+        cats = list(
+            Category.objects.filter(status="visible")
+            .order_by("order")
+            .values("id", "category_id", "name")
+        )
+        if not cats:
+            return Response([], status=status.HTTP_200_OK)
+        cat_pk = [c["id"] for c in cats]
 
-        categories = Category.objects.filter(status="visible").order_by("order")
+        # Category images grouped
+        cat_imgs = defaultdict(list)
+        for rel in (CategoryImage.objects
+                    .filter(category_id__in=cat_pk)
+                    .select_related('image')
+                    .order_by('category_id', 'id')):
+            d = format_image_object(rel, request=request)
+            if d:
+                cat_imgs[rel.category_id].append(d)
 
-        for cat in categories:
-            cat_image_objs = CategoryImage.objects.filter(category=cat).select_related('image')
-            cat_image_urls = [
-                img for img in (format_image_object(obj, request=request) for obj in cat_image_objs) if img
-            ]
-
-            subcat_maps = (
-                CategorySubCategoryMap.objects
-                .filter(category=cat, subcategory__status="visible")
-                .select_related('subcategory')
-                .order_by('subcategory__order')
-            )
-
-            subcategories = []
-            for map_entry in subcat_maps:
-                sub = map_entry.subcategory
-
-                sub_image_objs = SubCategoryImage.objects.filter(subcategory=sub).select_related('image')
-                sub_image_urls = [
-                    img for img in (format_image_object(obj, request=request) for obj in sub_image_objs) if img
-                ]
-
-                prod_maps = ProductSubCategoryMap.objects.filter(subcategory=sub).select_related('product')
-                products = []
-                for prod_map in prod_maps:
-                    prod = prod_map.product
-
-                    prod_image_objs = ProductImage.objects.filter(product=prod).select_related('image')
-                    prod_image_urls = [
-                        img for img in (format_image_object(obj, request=request) for obj in prod_image_objs) if img
-                    ]
-
-                    products.append({
-                        "id": prod.product_id,
-                        "name": prod.title,
-                        "images": prod_image_urls,  # [{url, alt_text}, ...]
-                        "url": slugify(prod.title),
-                    })
-
-                subcategories.append({
-                    "id": sub.subcategory_id,
-                    "name": sub.name,
-                    "images": sub_image_urls,  # [{url, alt_text}, ...]
-                    "url": slugify(sub.name),
-                    "products": products,
+        # Category → Subcategories (visible)
+        sub_rows = list(
+            CategorySubCategoryMap.objects
+            .filter(category_id__in=cat_pk, subcategory__status="visible")
+            .select_related('subcategory')
+            .order_by('subcategory__order')
+            .values('category_id', 'subcategory_id', 'subcategory__subcategory_id',
+                    'subcategory__name', 'subcategory__id')
+        )
+        if not sub_rows:
+            out = []
+            for c in cats:
+                out.append({
+                    "id": c["category_id"],
+                    "name": c["name"],
+                    "images": cat_imgs.get(c["id"], []),
+                    "url": slugify(c["name"]),
+                    "subcategories": []
                 })
+            return Response(out, status=status.HTTP_200_OK)
 
-            data.append({
-                "id": cat.category_id,
-                "name": cat.name,
-                "images": cat_image_urls,  # [{url, alt_text}, ...]
-                "url": slugify(cat.name),
-                "subcategories": subcategories,
+        sub_pk = [r['subcategory__id'] for r in sub_rows]
+
+        # Subcategory images grouped
+        sub_imgs = defaultdict(list)
+        for rel in (SubCategoryImage.objects
+                    .filter(subcategory_id__in=sub_pk)
+                    .select_related('image')
+                    .order_by('subcategory_id', 'id')):
+            d = format_image_object(rel, request=request)
+            if d:
+                sub_imgs[rel.subcategory_id].append(d)
+
+        # Subcategory → Products
+        prod_rows = list(
+            ProductSubCategoryMap.objects
+            .filter(subcategory_id__in=sub_pk)
+            .select_related('product')
+            .values('subcategory_id', 'product__id', 'product__product_id', 'product__title')
+        )
+        prod_pk = [r['product__id'] for r in prod_rows]
+
+        # Product images grouped
+        prod_imgs = defaultdict(list)
+        if prod_pk:
+            for rel in (ProductImage.objects
+                        .filter(product_id__in=prod_pk)
+                        .select_related('image')
+                        .order_by('product_id', 'id')):
+                d = format_image_object(rel, request=request)
+                if d:
+                    prod_imgs[rel.product_id].append(d)
+
+        # Build maps
+        pk_to_public = {r['subcategory__id']: r['subcategory__subcategory_id'] for r in sub_rows}
+        cat_to_subs = defaultdict(list)
+        for r in sub_rows:
+            sub_internal_pk = r['subcategory__id']
+            cat_to_subs[r['category_id']].append({
+                "id": r['subcategory__subcategory_id'],
+                "name": r['subcategory__name'],
+                "images": sub_imgs.get(sub_internal_pk, []),
+                "url": slugify(r['subcategory__name']),
+                "products": []  # fill below
             })
 
-        return Response(data, status=status.HTTP_200_OK)
+        # Fast subcategory index by public id
+        sub_index = {}
+        for subs in cat_to_subs.values():
+            for s in subs:
+                sub_index[s["id"]] = s
+
+        # Append products
+        for r in prod_rows:
+            public_sub_id = pk_to_public.get(r['subcategory_id'])
+            if not public_sub_id:
+                continue
+            s = sub_index.get(public_sub_id)
+            if not s:
+                continue
+            s["products"].append({
+                "id": r['product__product_id'],
+                "name": r['product__title'],
+                "images": prod_imgs.get(r['product__id'], []),
+                "url": slugify(r['product__title'])
+            })
+
+        # Final assemble
+        out = []
+        for c in cats:
+            out.append({
+                "id": c["category_id"],
+                "name": c["name"],
+                "images": cat_imgs.get(c["id"], []),
+                "url": slugify(c["name"]),
+                "subcategories": cat_to_subs.get(c["id"], [])
+            })
+        return Response(out, status=status.HTTP_200_OK)
+# ------------------------------
+
 
 class SaveUserAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -1674,7 +1843,7 @@ class SaveUserAPIView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# show_user -> APIView (GET)
+
 class ShowUserAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1682,11 +1851,6 @@ class ShowUserAPIView(APIView):
         users = User.objects.all().values('user_id', 'email', 'first_name', 'created_at', 'updated_at')
         return Response({'users': list(users)}, status=status.HTTP_200_OK)
 
-from decimal import Decimal
-import hashlib, json, uuid
-from django.shortcuts import get_object_or_404
-from rest_framework.response import Response
-from rest_framework import status
 
 def _build_variant_signature(product_id: str, selected_size, selected_attributes: dict) -> str:
     # stable, hashed signature of the selection
@@ -1697,6 +1861,7 @@ def _build_variant_signature(product_id: str, selected_size, selected_attributes
     }
     s = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha1(s.encode()).hexdigest()
+
 
 class SaveCartAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -1743,7 +1908,7 @@ class SaveCartAPIView(APIView):
 
     def post(self, request):
         try:
-            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+            data = parse_json_body(request)
 
             device_uuid = data.get("device_uuid") or request.headers.get("X-Device-UUID")
             if not device_uuid:
@@ -1767,7 +1932,6 @@ class SaveCartAPIView(APIView):
             unit_price = base_price + attributes_delta
 
             # Signature ensures "same selection" merges
-            # Use option IDs to ensure uniqueness even if labels change
             sig_parts = [f"size:{selected_size}"] + [
                 f"{k}:{v}" for k, v in sorted(selected_attributes.items(), key=lambda x: x[0])
             ]
@@ -1803,24 +1967,24 @@ class SaveCartAPIView(APIView):
             print("❌ [SAVE_CART] Error:", str(e))
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+
+# ---------- OPTIMIZED ----------
 class ShowCartAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
-    def _attr_humanize(self, sel: dict):
+    def _attr_humanize_batch(self, selected_map, attr_cache):
         """
-        Return (details_list, delta_sum_decimal).
-        details_list: [{attribute_name, option_label, price_delta}, ...]
+        selected_map: dict[parent_id -> option_id]
+        attr_cache: dict[attr_id -> Attribute (with .parent)]
         """
         details = []
         total_delta = Decimal("0.00")
-        if not isinstance(sel, dict):
+        if not isinstance(selected_map, dict):
             return details, total_delta
-
-        for parent_id, opt_id in sel.items():
-            opt = Attribute.objects.filter(attr_id=opt_id).select_related("parent").first()
-            parent = Attribute.objects.filter(attr_id=parent_id).first() if not (opt and opt.parent and opt.parent.attr_id == parent_id) else opt.parent
-
-            price_delta = Decimal(str(opt.price_delta)) if (opt and opt.price_delta is not None) else Decimal("0.00")
+        for parent_id, opt_id in selected_map.items():
+            opt = attr_cache.get(opt_id)
+            parent = attr_cache.get(parent_id) or (opt.parent if opt and opt.parent and opt.parent.attr_id == parent_id else None)
+            price_delta = Decimal(str(getattr(opt, "price_delta", 0) or 0))
             total_delta += price_delta
             details.append({
                 "attribute_id": parent_id,
@@ -1839,57 +2003,74 @@ class ShowCartAPIView(APIView):
         if not cart:
             return Response({"cart_items": []}, status=status.HTTP_200_OK)
 
-        cart_items = CartItem.objects.filter(cart=cart).select_related("product")
-        response_data = []
+        items = list(CartItem.objects.filter(cart=cart).select_related("product"))
+        if not items:
+            return Response({"cart_items": []}, status=status.HTTP_200_OK)
 
-        for item in cart_items:
-            # Image (first linked product image)
-            image_rel = Image.objects.filter(linked_table='product', linked_id=item.product.product_id).first()
-            image_url = request.build_absolute_uri(image_rel.url) if image_rel and getattr(image_rel, "url", None) else None
-            alt_text = getattr(image_rel, "alt_text", "") if image_rel else ""
+        # 1) First image per product (linked_table='product') in one query
+        prod_ids = {it.product.product_id for it in items}
+        first_image_by_pid = {}
+        for img in (Image.objects
+                    .filter(linked_table='product', linked_id__in=prod_ids)
+                    .order_by('linked_id', 'created_at')):
+            pid = img.linked_id
+            if pid not in first_image_by_pid and getattr(img, "url", None):
+                try:
+                    first_image_by_pid[pid] = request.build_absolute_uri(img.url)
+                except Exception:
+                    first_image_by_pid[pid] = img.url
 
-            # Human-readable selections
-            selections, attrs_delta = self._attr_humanize(item.selected_attributes or {})
+        # 2) Attribute cache for all selected attributes in the cart
+        wanted_attr_ids = set()
+        for it in items:
+            sel = it.selected_attributes or {}
+            if isinstance(sel, dict):
+                wanted_attr_ids.update(sel.keys())
+                wanted_attr_ids.update(sel.values())
+        attr_cache = {}
+        if wanted_attr_ids:
+            for a in Attribute.objects.filter(attr_id__in=wanted_attr_ids).select_related("parent"):
+                attr_cache[a.attr_id] = a
 
-            base_price = Decimal(str(item.product.discounted_price or item.product.price or 0))
+        # 3) Build response
+        rows = []
+        for it in items:
+            base_price = Decimal(str(it.product.discounted_price or it.product.price or 0))
+            selections, attrs_delta = self._attr_humanize_batch(it.selected_attributes or {}, attr_cache)
             unit_price = base_price + attrs_delta
-            line_total = unit_price * item.quantity
+            line_total = unit_price * it.quantity
 
-            # e.g. "Product1 (Paper Type: Simple, Size: 49)"
             selection_bits = []
-            if item.selected_size:
-                selection_bits.append(f"Size: {item.selected_size}")
+            if it.selected_size:
+                selection_bits.append(f"Size: {it.selected_size}")
             for d in selections:
                 selection_bits.append(f"{d['attribute_name']}: {d['option_label']}")
             parenthetical = f" ({', '.join(selection_bits)})" if selection_bits else ""
 
-            # e.g. "3 x $(4 + 0 + 5) = $27"
-            # parts: actual base + each delta
             price_parts = [str(base_price)] + [d["price_delta"] for d in selections if d["price_delta"] not in ("0", "0.0", "0.00")]
             if not price_parts:
                 price_parts = [str(base_price)]
-            breakdown_str = f"{item.quantity} x $(" + " + ".join(price_parts) + f") = ${line_total}"
+            breakdown_str = f"{it.quantity} x $(" + " + ".join(price_parts) + f") = ${line_total}"
 
-            response_data.append({
-                "product_id": item.product.product_id,
-                "product_name": item.product.title,
-                "product_image": image_url,
-                "alt_text": alt_text,
-                "quantity": item.quantity,
-                "selected_size": item.selected_size or "",
-                "selected_attributes": item.selected_attributes or {},  # raw ids mapping
-                "selected_attributes_human": selections,                # names/labels + deltas
+            rows.append({
+                "product_id": it.product.product_id,
+                "product_name": it.product.title,
+                "product_image": first_image_by_pid.get(it.product.product_id),
+                "alt_text": "",  # Image model carries alt if needed
+                "quantity": it.quantity,
+                "selected_size": it.selected_size or "",
+                "selected_attributes": it.selected_attributes or {},
+                "selected_attributes_human": selections,
                 "price_breakdown": {
                     "base_price": str(base_price),
                     "attributes_delta": str(attrs_delta),
                     "unit_price": str(unit_price),
-                    "quantity": item.quantity,
+                    "quantity": it.quantity,
                     "line_total": str(line_total),
                 },
-                "summary_line": f"{item.product.title}{parenthetical}: {breakdown_str}",
+                "summary_line": f"{it.product.title}{parenthetical}: {breakdown_str}",
             })
-
-        return Response({"cart_items": response_data}, status=status.HTTP_200_OK)
+        return Response({"cart_items": rows}, status=status.HTTP_200_OK)
 
     def get(self, request):
         device_uuid = request.headers.get('X-Device-UUID')
@@ -1899,14 +2080,14 @@ class ShowCartAPIView(APIView):
         device_uuid = request.headers.get('X-Device-UUID')
         if not device_uuid:
             try:
-                data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+                data = parse_json_body(request)
                 device_uuid = data.get("device_uuid")
             except Exception:
                 device_uuid = None
         return self._respond(request, device_uuid)
+# ------------------------------
 
-  
-# delete_cart_item -> APIView (POST)
+
 class DeleteCartItemAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1939,6 +2120,7 @@ class DeleteCartItemAPIView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
+
 class SaveOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
     @transaction.atomic
@@ -2043,88 +2225,91 @@ class SaveOrderAPIView(APIView):
             print(traceback.format_exc())
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+
+# ---------- OPTIMIZED ----------
 class ShowOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def get(self, request):
         try:
-            orders_data = []
-            orders = Orders.objects.all().order_by('-created_at')
+            orders = list(Orders.objects.all().order_by('-created_at'))
+            if not orders:
+                return Response({"orders": []}, status=status.HTTP_200_OK)
 
-            for order in orders:
-                order_items = (
-                    OrderItem.objects
-                    .filter(order=order)
-                    .select_related('product')
-                )
+            order_pk = [o.pk for o in orders]
 
+            # Items (with product) in one query
+            items = list(
+                OrderItem.objects.filter(order_id__in=order_pk)
+                .select_related('product', 'order')
+            )
+
+            # Deliveries in one query
+            deliveries = {
+                d.order_id: d for d in OrderDelivery.objects.filter(order_id__in=order_pk)
+            }
+
+            # Group items per order
+            per_order = defaultdict(list)
+            for it in items:
+                human = it.selected_attributes_human or []
+                tokens = []
+                if it.selected_size:
+                    tokens.append(f"Size: {it.selected_size}")
+                for d in human:
+                    tokens.append(f"{d.get('attribute_name','')}: {d.get('option_label','')}")
+                selection_str = ", ".join(filter(None, tokens))
+
+                # base/deltas (strings safe)
                 try:
-                    delivery = OrderDelivery.objects.get(order=order)
-                    address = {
-                        "street": delivery.street_address,
-                        "city": delivery.city,
-                        "zip": delivery.zip_code
-                    }
-                    email = delivery.email or ""
-                except OrderDelivery.DoesNotExist:
-                    address, email = {}, ""
-
-                items_detail = []
-                for it in order_items:
-                    human = it.selected_attributes_human or []
-                    tokens = []
-                    if it.selected_size:
-                        tokens.append(f"Size: {it.selected_size}")
-                    for d in human:
-                        tokens.append(f"{d.get('attribute_name','')}: {d.get('option_label','')}")
-                    selection_str = ", ".join([t for t in tokens if t])
-
-                    # math parts
+                    base = Decimal(it.price_breakdown.get("base_price", it.unit_price))
+                except Exception:
+                    base = it.unit_price
+                deltas = []
+                for d in human:
                     try:
-                        base = Decimal(it.price_breakdown.get("base_price", it.unit_price))
+                        deltas.append(Decimal(d.get("price_delta", "0") or "0"))
                     except Exception:
-                        base = it.unit_price
-                    deltas = []
-                    for d in human:
-                        try:
-                            deltas.append(Decimal(d.get("price_delta", "0") or "0"))
-                        except Exception:
-                            deltas.append(Decimal("0"))
+                        deltas.append(Decimal("0"))
 
-                    items_detail.append({
-                        "product_id": it.product.product_id,
-                        "product_name": it.product.title,
-                        "quantity": it.quantity,
-                        "unit_price": str(it.unit_price),
-                        "total_price": str(it.total_price),
-                        "selection": selection_str,
-                        "math": {
-                            "base": str(base),
-                            "deltas": [str(x) for x in deltas],
-                        },
-                        "variant_signature": it.variant_signature or "",
-                    })
+                per_order[it.order_id].append({
+                    "product_id": it.product.product_id,
+                    "product_name": it.product.title,
+                    "quantity": it.quantity,
+                    "unit_price": str(it.unit_price),
+                    "total_price": str(it.total_price),
+                    "selection": selection_str,
+                    "math": {"base": str(base), "deltas": [str(x) for x in deltas]},
+                    "variant_signature": it.variant_signature or "",
+                })
 
+            # Assemble response
+            orders_data = []
+            for o in orders:
+                d = deliveries.get(o.pk)
+                address = {"street": d.street_address, "city": d.city, "zip": d.zip_code} if d else {}
+                email = d.email or "" if d else ""
+                items_detail = per_order.get(o.pk, [])
                 orders_data.append({
-                    "orderID": order.order_id,
-                    "Date": order.order_date.strftime('%Y-%m-%d %H:%M:%S'),
-                    "UserName": order.user_name,
+                    "orderID": o.order_id,
+                    "Date": o.order_date.strftime('%Y-%m-%d %H:%M:%S'),
+                    "UserName": o.user_name,
                     "item": {
                         "count": len(items_detail),
                         "names": [x["product_name"] for x in items_detail],
                         "detail": items_detail,
                     },
-                    "total": float(order.total_price),
-                    "status": order.status,
+                    "total": float(o.total_price),
+                    "status": o.status,
                     "Address": address,
                     "email": email,
-                    "order_placed_on": order.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                    "order_placed_on": o.created_at.strftime('%Y-%m-%d %H:%M:%S')
                 })
-
             return Response({"orders": orders_data}, status=status.HTTP_200_OK)
-
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+# ------------------------------
+
 
 class EditOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -2223,32 +2408,34 @@ class EditOrderAPIView(APIView):
             print(traceback.format_exc())
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
        
+
+# ---------- OPTIMIZED ----------
 class ShowAdminAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def get(self, request):
         try:
+            rows = (AdminRoleMap.objects
+                    .select_related('admin', 'role')
+                    .all())
             result = []
-            all_admins = Admin.objects.all()
-
-            for admin in all_admins:
-                role_map = AdminRoleMap.objects.filter(admin=admin).first()
-                if role_map:
-                    role = role_map.role
-                    result.append({
-                        "admin_id": admin.admin_id,
-                        "admin_name": admin.admin_name,
-                        "password_hash": admin.password_hash,
-                        "role_id": role.role_id,
-                        "role_name": role.role_name,
-                        "access_pages": role.access_pages,
-                        "created_at": admin.created_at,
-                    })
-
+            for m in rows:
+                a, r = m.admin, m.role
+                result.append({
+                    "admin_id": a.admin_id,
+                    "admin_name": a.admin_name,
+                    "password_hash": a.password_hash,
+                    "role_id": r.role_id,
+                    "role_name": r.role_name,
+                    "access_pages": r.access_pages,
+                    "created_at": a.created_at,
+                })
             return Response({"success": True, "admins": result}, status=status.HTTP_200_OK)
         except Exception as e:
             traceback.print_exc()
             return Response({"success": False, "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+# ------------------------------
+
 
 class SaveAdminAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -2307,6 +2494,7 @@ class SaveAdminAPIView(APIView):
                 "hint": "Check for admin_id collisions or access_pages misconfig"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class DeleteAdminAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -2331,6 +2519,7 @@ class DeleteAdminAPIView(APIView):
         except Exception as e:
             traceback.print_exc()
             return Response({"success": False, "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class AdminLoginAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -2363,6 +2552,7 @@ class AdminLoginAPIView(APIView):
             traceback.print_exc()
             return Response({"success": False, "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
+
 class ShowAllImagesAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -2385,6 +2575,7 @@ class ShowAllImagesAPIView(APIView):
             })
         # keep same shape (list)
         return Response(data, status=status.HTTP_200_OK)
+
 
 class EditImageAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -2415,6 +2606,7 @@ class EditImageAPIView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class DeleteImageAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -2433,6 +2625,7 @@ class DeleteImageAPIView(APIView):
             return Response({'error': 'Image not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class FirstCarouselAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -2527,6 +2720,7 @@ class FirstCarouselAPIView(APIView):
             print("❌ POST Error:", traceback.format_exc())
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class SecondCarouselAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -2619,6 +2813,7 @@ class SecondCarouselAPIView(APIView):
         except Exception as e:
             print("❌ POST Error:", traceback.format_exc())
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class HeroBannerAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -2737,12 +2932,14 @@ class HeroBannerAPIView(APIView):
             print("❌ HeroBanner POST Error:", traceback.format_exc())
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
+
 @api_view(['GET'])
 @permission_classes([FrontendOnlyPermission])
 def get_notifications(request):
     notifications = Notification.objects.order_by('-created_at')[:1000]
     serializer = NotificationSerializer(notifications, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 @api_view(['POST'])
 @permission_classes([FrontendOnlyPermission])
@@ -2758,6 +2955,7 @@ def update_notification_status(request):
     notification.status = new_status
     notification.save()
     return Response({"message": "Status updated"}, status=status.HTTP_200_OK)
+
 
 @api_view(['POST'])
 @permission_classes([FrontendOnlyPermission])
@@ -2797,6 +2995,7 @@ def update_image(request, image_id):
         'tags': image.tags,
     }, status=status.HTTP_200_OK)
 
+
 @csrf_exempt
 def save_blog(request):
     if request.method == "POST":
@@ -2834,6 +3033,7 @@ def save_blog(request):
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
 
+
 @csrf_exempt
 def edit_blog(request, blog_id):
     if request.method == "POST":
@@ -2869,26 +3069,38 @@ def edit_blog(request, blog_id):
             return JsonResponse({"error": "Blog not found"}, status=404)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
-        
+
+
+# ---------- OPTIMIZED ----------
 def show_blogs(request):
     if request.method == "GET":
-        blogs = Blog.objects.all().order_by("-created_at")
-        blog_list = []
+        blogs = list(Blog.objects.all().order_by("-created_at"))
+        if not blogs:
+            return JsonResponse({"blogs": []}, status=200)
 
-        for blog in blogs:
-            categories = BlogCategoryMap.objects.filter(blog=blog).select_related("category")
+        blog_ids = [b.pk for b in blogs]
+        catnames_by_blog = defaultdict(list)
+        for m in (BlogCategoryMap.objects
+                  .filter(blog_id__in=blog_ids)
+                  .select_related("category")):
+            if m.category:
+                catnames_by_blog[m.blog_id].append(m.category.name)
+
+        blog_list = []
+        for b in blogs:
             blog_list.append({
-                "blog_id": blog.blog_id,
-                "title": blog.title,
-                "content": blog.content,
-                "blog_image": blog.blog_image,
-                "schedule_date": blog.schedule_date,
-                "status": blog.status,
-                "author_id": blog.author_id,
-                "author_type": blog.author_type,
-                "created_at": blog.created_at,
-                "updated_at": blog.updated_at,
-                "categories": [cat.category.name for cat in categories]
+                "blog_id": b.blog_id,
+                "title": b.title,
+                "content": b.content,
+                "blog_image": b.blog_image,
+                "schedule_date": b.schedule_date,
+                "status": b.status,
+                "author_id": b.author_id,
+                "author_type": b.author_type,
+                "created_at": b.created_at,
+                "updated_at": b.updated_at,
+                "categories": catnames_by_blog.get(b.pk, [])
             })
 
         return JsonResponse({"blogs": blog_list}, status=200)
+# ------------------------------
