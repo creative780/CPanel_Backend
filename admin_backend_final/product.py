@@ -18,7 +18,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from Back_End.admin_backend_final.utilities import format_image_object, generate_product_id, generate_unique_seo_id, generate_unique_slug, save_image
+from .utilities import format_image_object, generate_product_id, generate_unique_seo_id, generate_unique_slug, save_image
 # Local Imports
 from .models import *  # Consider specifying models instead of wildcard import
 from .permissions import FrontendOnlyPermission

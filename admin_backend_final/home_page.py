@@ -8,7 +8,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from Back_End.admin_backend_final.utilities import save_image
+from .utilities import save_image
 # Local Imports
 from .models import *  # Consider specifying models instead of wildcard import
 from .permissions import FrontendOnlyPermission
