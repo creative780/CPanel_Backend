@@ -408,18 +408,20 @@ class ShowOrderAPIView(APIView):
 
     def get(self, request):
         try:
-            # FIX: sort by order_date (created_at doesn't exist)
             orders = list(Orders.objects.all().order_by('-order_date'))
             if not orders:
                 return Response({"orders": []}, status=status.HTTP_200_OK)
 
+            # Batch deliveries
             deliveries = {d.order_id: d for d in OrderDelivery.objects.filter(order__in=orders)}
 
+            # Batch items (with product)
             order_items_qs = (
                 OrderItem.objects
                 .filter(order__in=orders)
                 .select_related('product')
             )
+
             items_by_order = {}
             for it in order_items_qs:
                 items_by_order.setdefault(it.order_id, []).append(it)
@@ -441,25 +443,63 @@ class ShowOrderAPIView(APIView):
 
                 items_detail = []
                 for it in order_items:
-                    human = it.selected_attributes_human or []
+                    # --- Normalize selected_attributes_human to a list[dict] ---
+                    human_raw = it.selected_attributes_human
+                    human: list = []
+                    if isinstance(human_raw, list):
+                        human = human_raw
+                    elif isinstance(human_raw, dict):
+                        human = [human_raw]
+                    elif isinstance(human_raw, str):
+                        try:
+                            parsed = json.loads(human_raw)
+                            if isinstance(parsed, list):
+                                human = parsed
+                            elif isinstance(parsed, dict):
+                                human = [parsed]
+                            else:
+                                human = []
+                        except Exception:
+                            human = []
+                    else:
+                        human = []
+
+                    # --- Normalize price_breakdown to a dict ---
+                    pb_raw = it.price_breakdown
+                    pb = {}
+                    if isinstance(pb_raw, dict):
+                        pb = pb_raw
+                    elif isinstance(pb_raw, str):
+                        try:
+                            parsed_pb = json.loads(pb_raw)
+                            if isinstance(parsed_pb, dict):
+                                pb = parsed_pb
+                        except Exception:
+                            pb = {}
+
                     tokens = []
                     if it.selected_size:
                         tokens.append(f"Size: {it.selected_size}")
                     for d in human:
-                        tokens.append(f"{d.get('attribute_name','')}: {d.get('option_label','')}")
+                        # guard each element
+                        if isinstance(d, dict):
+                            tokens.append(f"{d.get('attribute_name','')}: {d.get('option_label','')}")
                     selection_str = ", ".join([t for t in tokens if t])
 
+                    # Base price: prefer breakdown, fall back to unit_price
                     try:
-                        base = Decimal(it.price_breakdown.get("base_price", it.unit_price))
+                        base = Decimal(pb.get("base_price", it.unit_price))
                     except Exception:
                         base = it.unit_price
 
+                    # Deltas: build from human if present
                     deltas = []
                     for d in human:
-                        try:
-                            deltas.append(Decimal(d.get("price_delta", "0") or "0"))
-                        except Exception:
-                            deltas.append(Decimal("0"))
+                        if isinstance(d, dict):
+                            try:
+                                deltas.append(Decimal(d.get("price_delta", "0") or "0"))
+                            except Exception:
+                                deltas.append(Decimal("0"))
 
                     items_detail.append({
                         "product_id": it.product.product_id,
@@ -488,13 +528,15 @@ class ShowOrderAPIView(APIView):
                     "status": order.status,
                     "Address": address,
                     "email": email,
-                    # FIX: use order_date; do not reference created_at
                     "order_placed_on": order.order_date.strftime('%Y-%m-%d %H:%M:%S')
                 })
 
             return Response({"orders": orders_data}, status=status.HTTP_200_OK)
         except Exception as e:
+            # Keep generic 500 body, but you can temporarily log for local debugging
+            # print(traceback.format_exc())
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 
 class EditOrderAPIView(APIView):
