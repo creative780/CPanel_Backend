@@ -408,18 +408,18 @@ class ShowOrderAPIView(APIView):
 
     def get(self, request):
         try:
-            # ✅ Use order_date (not created_at) to avoid 500s
+            # FIX: sort by order_date (created_at doesn't exist)
             orders = list(Orders.objects.all().order_by('-order_date'))
             if not orders:
                 return Response({"orders": []}, status=status.HTTP_200_OK)
 
             deliveries = {d.order_id: d for d in OrderDelivery.objects.filter(order__in=orders)}
+
             order_items_qs = (
                 OrderItem.objects
                 .filter(order__in=orders)
                 .select_related('product')
             )
-
             items_by_order = {}
             for it in order_items_qs:
                 items_by_order.setdefault(it.order_id, []).append(it)
@@ -488,13 +488,14 @@ class ShowOrderAPIView(APIView):
                     "status": order.status,
                     "Address": address,
                     "email": email,
-                    # ✅ Safe: fall back to order_date for "placed on"
+                    # FIX: use order_date; do not reference created_at
                     "order_placed_on": order.order_date.strftime('%Y-%m-%d %H:%M:%S')
                 })
 
             return Response({"orders": orders_data}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class EditOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
