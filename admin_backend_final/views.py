@@ -1,7 +1,7 @@
+
 # Standard Library
 import json
 import traceback
-
 
 # Django
 from django.utils import timezone
@@ -23,11 +23,6 @@ from .utilities import format_image_object, generate_admin_id
 from .models import *  # Consider specifying models instead of wildcard import
 from .serializers import NotificationSerializer
 from .permissions import FrontendOnlyPermission
-
-
-# ---------------------------------------------------------------------
-# API Views (same input/output semantics as your original functions)
-# ---------------------------------------------------------------------
 
 class ShowNavItemsAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -64,7 +59,12 @@ class ShowNavItemsAPIView(APIView):
                 for prod_map in prod_maps:
                     prod = prod_map.product
 
-                    prod_image_objs = ProductImage.objects.filter(product=prod).select_related('image')
+                    prod_image_objs = (
+                        ProductImage.objects
+                        .filter(product=prod)
+                        .select_related('image')
+                        .order_by('-is_primary', 'id')  # primary first, then stable order
+                    )
                     prod_image_urls = [
                         img for img in (format_image_object(obj, request=request) for obj in prod_image_objs) if img
                     ]
@@ -72,7 +72,7 @@ class ShowNavItemsAPIView(APIView):
                     products.append({
                         "id": prod.product_id,
                         "name": prod.title,
-                        "images": prod_image_urls,  # [{url, alt_text}, ...]
+                        "images": prod_image_urls,  # [{url, alt_text}, ...] -> FIRST is thumbnail if present
                         "url": slugify(prod.title),
                     })
 
@@ -410,3 +410,4 @@ def update_image(request, image_id):
         'alt_text': image.alt_text,
         'tags': image.tags,
     }, status=status.HTTP_200_OK)
+

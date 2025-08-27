@@ -1,3 +1,4 @@
+
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings  # for AUTH_USER_MODEL-safe FKs
@@ -220,8 +221,8 @@ class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="images")
     image = models.ForeignKey(Image, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
+    is_primary = models.BooleanField(default=False)
     
-
 class Attribute(models.Model):
     attr_id = models.CharField(primary_key=True, max_length=100)
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="attributes", db_index=True)
@@ -442,22 +443,48 @@ class FirstCarousel(models.Model):
     def __str__(self):
         return self.title
 
-class SecondCarousel(models.Model):
-    title = models.CharField(max_length=255)
-    description = models.TextField()
-
 class FirstCarouselImage(models.Model):
     carousel = models.ForeignKey(FirstCarousel, on_delete=models.CASCADE, related_name="images")
     image = models.ForeignKey('Image', on_delete=models.CASCADE)
     title = models.CharField(max_length=255, default="", blank=True)
-    caption = models.CharField(max_length=255, default="", blank=True)
+
+    # Be explicit about Category’s Char PK and the physical DB column name
+    category = models.ForeignKey(
+        'Category',
+        to_field='category_id',          # target PK is CharField
+        db_column='category_id',         # create/use column literally named category_id
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='first_carousel_images',
+    )
+
+    caption = models.CharField(max_length=255, default="", blank=True)  # legacy
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
+class SecondCarousel(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+
+    def __str__(self):
+        return self.title
 class SecondCarouselImage(models.Model):
     carousel = models.ForeignKey(SecondCarousel, on_delete=models.CASCADE, related_name="images")
     image = models.ForeignKey('Image', on_delete=models.CASCADE)
     title = models.CharField(max_length=255, default="", blank=True)
-    caption = models.CharField(max_length=255, default="", blank=True)
+
+    # Be explicit about Category’s Char PK and the physical DB column name
+    category = models.ForeignKey(
+        'Category',
+        to_field='category_id',          # target PK is CharField
+        db_column='category_id',         # create/use column literally named category_id
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='second_carousel_images',
+    )
+
+    caption = models.CharField(max_length=255, default="", blank=True)  # legacy
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)

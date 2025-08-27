@@ -1,3 +1,4 @@
+
 # Standard Library
 import json
 import uuid
@@ -13,6 +14,12 @@ from .utilities import save_image
 from .models import *  # Consider specifying models instead of wildcard import
 from .permissions import FrontendOnlyPermission
 
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.db import transaction
+import json, traceback
+
 class FirstCarouselAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -21,24 +28,35 @@ class FirstCarouselAPIView(APIView):
             carousel = FirstCarousel.objects.last()
             if not carousel:
                 return Response({
-                    'title': 'Default Title',
-                    'description': 'Default Description',
-                    'images': [
-                        '/uploads/img1.jpg',
-                        '/uploads/img2.jpg',
-                        '/uploads/img3.jpg',
-                    ]
+                    'title': 'Default First Carousel Title',
+                    'description': 'Default First Carousel Description',
+                    'images': []
                 }, status=status.HTTP_200_OK)
 
-            images = carousel.images.order_by("order").all()
-            image_data = [
-                {
-                    'src': img.image.image_file.url,
+            # Keep consistent ordering
+            images = (
+                carousel.images
+                .order_by("order")
+                .select_related("image", "category")
+                .all()
+            )
+
+            image_data = []
+            for img in images:
+                category_obj = None
+                if img.category:
+                    # NOTE: Category PK is CharField (category_id). Use .pk for portability.
+                    category_obj = {
+                        'id': img.category.pk,
+                        'name': getattr(img.category, 'name', ''),
+                        'slug': getattr(img.category, 'slug', ''),
+                    }
+
+                image_data.append({
+                    'src': img.image.image_file.url if img.image and img.image.image_file else '',
                     'title': img.title,
-                    'caption': img.caption
-                }
-                for img in images
-            ]
+                    'category': category_obj,
+                })
 
             return Response({
                 'title': carousel.title,
@@ -50,13 +68,15 @@ class FirstCarouselAPIView(APIView):
             print("❌ GET Error:", traceback.format_exc())
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @transaction.atomic
     def post(self, request):
         try:
-            data = json.loads(request.body)
+            data = json.loads(request.body or "{}")
             title = data.get('title', '')
             description = data.get('description', '')
             raw_images = data.get('images', [])
 
+            # Reset the single-instance nature
             FirstCarousel.objects.all().delete()
 
             carousel = FirstCarousel.objects.create(
@@ -65,10 +85,20 @@ class FirstCarouselAPIView(APIView):
             )
 
             for i, img_data in enumerate(raw_images):
-                img_src = img_data.get('src') if isinstance(img_data, dict) else None
-                img_title = (img_data.get('title') if isinstance(img_data, dict) else None) or f'Product {i + 1}'
-                img_caption = (img_data.get('caption') if isinstance(img_data, dict) else None) or 'Catchy tagline'
+                if not isinstance(img_data, dict):
+                    continue
 
+                img_src = img_data.get('src')
+                img_title = img_data.get('title') or f'Product {i + 1}'
+
+                # 🔑 Category PK is CharField; use pk or category_id
+                category_key = img_data.get('category_id')
+                category = None
+                if category_key:
+                    # Using pk is robust even if PK field name changes
+                    category = Category.objects.filter(pk=category_key).first()
+
+                # Reuse existing /uploads/ logic
                 if isinstance(img_src, str) and img_src.startswith('/uploads/'):
                     existing_image = Image.objects.filter(
                         image_file=img_src.replace('/uploads/', 'uploads/')
@@ -78,7 +108,7 @@ class FirstCarouselAPIView(APIView):
                             carousel=carousel,
                             image=existing_image,
                             title=img_title,
-                            caption=img_caption,
+                            category=category,
                             order=i
                         )
                     continue
@@ -96,7 +126,7 @@ class FirstCarouselAPIView(APIView):
                         carousel=carousel,
                         image=saved_image,
                         title=img_title,
-                        caption=img_caption,
+                        category=category,
                         order=i
                     )
 
@@ -105,7 +135,7 @@ class FirstCarouselAPIView(APIView):
         except Exception as e:
             print("❌ POST Error:", traceback.format_exc())
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        
 class SecondCarouselAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -114,24 +144,35 @@ class SecondCarouselAPIView(APIView):
             carousel = SecondCarousel.objects.last()
             if not carousel:
                 return Response({
-                    'title': 'Default Title',
-                    'description': 'Default Description',
-                    'images': [
-                        '/uploads/img1.jpg',
-                        '/uploads/img2.jpg',
-                        '/uploads/img3.jpg',
-                    ]
+                    'title': 'Default Second Carousel Title',
+                    'description': 'Default Second Carousel Description',
+                    'images': []
                 }, status=status.HTTP_200_OK)
 
-            images = carousel.images.order_by("order").all()
-            image_data = [
-                {
-                    'src': img.image.image_file.url,
+            # Keep consistent ordering
+            images = (
+                carousel.images
+                .order_by("order")
+                .select_related("image", "category")
+                .all()
+            )
+
+            image_data = []
+            for img in images:
+                category_obj = None
+                if img.category:
+                    # NOTE: Category PK is CharField (category_id). Use .pk for portability.
+                    category_obj = {
+                        'id': img.category.pk,
+                        'name': getattr(img.category, 'name', ''),
+                        'slug': getattr(img.category, 'slug', ''),
+                    }
+
+                image_data.append({
+                    'src': img.image.image_file.url if img.image and img.image.image_file else '',
                     'title': img.title,
-                    'caption': img.caption
-                }
-                for img in images
-            ]
+                    'category': category_obj,
+                })
 
             return Response({
                 'title': carousel.title,
@@ -143,13 +184,15 @@ class SecondCarouselAPIView(APIView):
             print("❌ GET Error:", traceback.format_exc())
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @transaction.atomic
     def post(self, request):
         try:
-            data = json.loads(request.body)
+            data = json.loads(request.body or "{}")
             title = data.get('title', '')
             description = data.get('description', '')
             raw_images = data.get('images', [])
 
+            # Reset the single-instance nature
             SecondCarousel.objects.all().delete()
 
             carousel = SecondCarousel.objects.create(
@@ -158,10 +201,20 @@ class SecondCarouselAPIView(APIView):
             )
 
             for i, img_data in enumerate(raw_images):
-                img_src = img_data.get('src') if isinstance(img_data, dict) else None
-                img_title = (img_data.get('title') if isinstance(img_data, dict) else None) or f'Product {i + 1}'
-                img_caption = (img_data.get('caption') if isinstance(img_data, dict) else None) or 'Catchy tagline'
+                if not isinstance(img_data, dict):
+                    continue
 
+                img_src = img_data.get('src')
+                img_title = img_data.get('title') or f'Product {i + 1}'
+
+                # 🔑 Category PK is CharField; use pk or category_id
+                category_key = img_data.get('category_id')
+                category = None
+                if category_key:
+                    # Using pk is robust even if PK field name changes
+                    category = Category.objects.filter(pk=category_key).first()
+
+                # Reuse existing /uploads/ logic
                 if isinstance(img_src, str) and img_src.startswith('/uploads/'):
                     existing_image = Image.objects.filter(
                         image_file=img_src.replace('/uploads/', 'uploads/')
@@ -171,7 +224,7 @@ class SecondCarouselAPIView(APIView):
                             carousel=carousel,
                             image=existing_image,
                             title=img_title,
-                            caption=img_caption,
+                            category=category,
                             order=i
                         )
                     continue
@@ -180,7 +233,7 @@ class SecondCarouselAPIView(APIView):
                     file_or_base64=img_src,
                     alt_text="Carousel Image",
                     tags="carousel",
-                    linked_table="Second Carousel",
+                    linked_table="SecondCarousel",
                     linked_id=str(carousel.id),
                     linked_page="second-carousel"
                 )
@@ -189,7 +242,7 @@ class SecondCarouselAPIView(APIView):
                         carousel=carousel,
                         image=saved_image,
                         title=img_title,
-                        caption=img_caption,
+                        category=category,
                         order=i
                     )
 
@@ -198,7 +251,7 @@ class SecondCarouselAPIView(APIView):
         except Exception as e:
             print("❌ POST Error:", traceback.format_exc())
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        
 class HeroBannerAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
