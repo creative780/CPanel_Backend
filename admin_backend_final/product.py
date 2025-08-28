@@ -54,12 +54,25 @@ def _to_decimal(val, default="0"):
     except (InvalidOperation, TypeError, ValueError):
         return Decimal(default)
 
+def _as_list(val):
+    """Coerce incoming field to list[str] safely."""
+    if val is None:
+        return []
+    if isinstance(val, list):
+        return [str(x) for x in val if str(x).strip()]
+    if isinstance(val, str):
+        return [v.strip() for v in val.split(",") if v.strip()]
+    return []
+
 # -----------------------
 # Save/Update Functions
 # -----------------------
 def save_product_basic(data, is_edit=False, existing_product=None):
     now = _now()
-    name = data.get('name')
+    name = (data.get('name') or '').strip()
+    if not name:
+        raise IntegrityError("Missing required field: name")
+
     brand = data.get('brand_title', '')
     price = _to_decimal(data.get('price', 0))
     discounted_price = _to_decimal(data.get('discounted_price', 0))
@@ -68,9 +81,9 @@ def save_product_basic(data, is_edit=False, existing_product=None):
     video_url = data.get('video_url', '')
     description = data.get('description', '')
     status_val = data.get('status', 'active')
-    quantity = int(data.get('quantity', 0))
-    low_stock_alert = int(data.get('low_stock_alert', 0))
-    stock_status = data.get('stock_status') or ('In Stock' if quantity > 0 else 'Out of Stock')
+    quantity = int(data.get('quantity', 0) or 0)
+    low_stock_alert = int(data.get('low_stock_alert', 0) or 0)
+    stock_status = data.get('stock_status') or ('In Stock' if quantity > 0 else 'Out Of Stock')
     subcategory_ids = data.get('subcategory_ids', ['DW-DEFAULTSUB-001'])
 
     if is_edit and existing_product:
@@ -137,12 +150,14 @@ def save_product_seo(data, product):
     )
 
     def clean_comma_array(value):
-        return [v.strip() for v in value.split(",") if v.strip()] if isinstance(value, str) else value
+        return [v.strip() for v in value.split(",") if v.strip()] if isinstance(value, str) else (value or [])
 
     seo.image_alt_text = data.get('image_alt_text', '')
     seo.meta_title = data.get('meta_title', '')
     seo.meta_description = data.get('meta_description', '')
-    seo.meta_keywords = data.get('meta_keywords', [])
+    # normalize keywords to list[str]
+    mk = data.get('meta_keywords', [])
+    seo.meta_keywords = _as_list(mk)
     seo.open_graph_title = data.get('open_graph_title', '')
     seo.open_graph_desc = data.get('open_graph_desc', '')
     seo.open_graph_image_url = data.get('open_graph_image_url', '')
@@ -155,7 +170,7 @@ def save_product_seo(data, product):
 
     try:
         desired_slug = slugify(product.title) or product.product_id.lower()
-        # 🔧 pass the Product (not the SEO) so exclude(product=...) is valid
+        # 🔧 pass the Product (not the SEO) so exclude(product=...) is valid (per util impl)
         seo.slug = generate_unique_slug(desired_slug, instance=product)
     except Exception:
         logger.exception("Slug generation failed")
@@ -165,13 +180,15 @@ def save_product_seo(data, product):
     seo.save()
 
 def save_shipping_info(data, product):
+    cls = data.get("shippingClass", [])
+    shipping_class = ",".join(_as_list(cls)) if isinstance(cls, (list, tuple, set)) else (cls or "")
     ShippingInfo.objects.update_or_create(
         product=product,
         defaults={
             'shipping_id': f"SHIP-{product.product_id}",
             'entered_by_id': 'SuperAdmin',
             'entered_by_type': 'admin',
-            'shipping_class': ",".join(data.get("shippingClass", [])),
+            'shipping_class': shipping_class,
             'processing_time': data.get("processing_time", ""),
             'created_at': _now(),
         }
@@ -180,14 +197,13 @@ def save_shipping_info(data, product):
 def save_product_variants(data, product):
     ProductVariant.objects.filter(product=product).delete()
 
-    sizes = data.get("size", [])
-    colors = data.get("colorVariants", [])
-    materials = data.get("materialType", [])
+    sizes = _as_list(data.get("size", []))
+    colors = _as_list(data.get("colorVariants", []))
+    materials = _as_list(data.get("materialType", []))
     printing_methods = data.get("printing_method", [])
-    if isinstance(printing_methods, str):
-        printing_methods = [printing_methods]
-    add_ons = data.get("addOnOptions", [])
-    fabric_finish = data.get("fabric_finish", "")
+    printing_methods = _as_list(printing_methods)
+    add_ons = _as_list(data.get("addOnOptions", []))
+    fabric_finish = (data.get("fabric_finish", "") or "").strip()
     combinations = data.get("variant_combinations", "")
 
     variant = ProductVariant.objects.create(
@@ -232,26 +248,48 @@ def save_product_subcategories(data, product):
                 logger.warning("Subcategory not found: %s", sub_id)
 
 def save_product_images(data, product):
+    """
+    Robust image save:
+      - Never swallow DatabaseError/IntegrityError (re-raise to rollback atomic block)
+      - Tolerate non-DB per-image errors and continue
+    """
     image_data_list = data.get('images', []) or []
 
     # Delete existing images mapped to this product
-    ProductImage.objects.filter(product=product).delete()
-    Image.objects.filter(linked_table='product', linked_id=product.product_id).delete()
+    try:
+        ProductImage.objects.filter(product=product).delete()
+        Image.objects.filter(linked_table='product', linked_id=product.product_id).delete()
+    except (DatabaseError, IntegrityError):
+        # propagate DB issues to abort the transaction
+        logger.exception("Image cleanup DB error")
+        raise
+    except Exception:
+        logger.exception("Non-DB error during image cleanup; continuing")
 
     for img_data in image_data_list:
+        # Only accept base64/data URLs or known valid strings; skip junk early
+        if not isinstance(img_data, str) or not img_data.strip():
+            continue
         try:
-            image = save_image(
-                img_data,
-                alt_text=data.get('image_alt_text', 'Product image'),
-                tags='',
-                linked_table='product',
-                linked_page='product-page',
-                linked_id=product.product_id
-            )
-            if image:
-                ProductImage.objects.create(product=product, image=image)
+            # Wrap each image in its own savepoint; non-DB errors get swallowed without poisoning the outer atomic
+            with transaction.atomic():
+                image = save_image(
+                    img_data,
+                    alt_text=data.get('image_alt_text', 'Product image'),
+                    tags='',
+                    linked_table='product',
+                    linked_page='product-page',
+                    linked_id=product.product_id
+                )
+                if image:
+                    ProductImage.objects.create(product=product, image=image)
+        except (DatabaseError, IntegrityError):
+            logger.exception("DB error while saving an image; aborting whole save")
+            # Re-raise to cancel the entire product save
+            raise
         except Exception:
-            logger.exception("Image save error")
+            logger.exception("Image save error (non-DB); skipping this image")
+            # continue to next image
 
 def update_stock_status(inventory):
     quantity = inventory.stock_quantity
@@ -303,17 +341,25 @@ def save_product_attributes(data, product):
                 price_delta = Decimal("0")
 
             img_obj = None
-            if opt.get("image_id"):
-                img_obj = Image.objects.filter(image_id=opt["image_id"]).first()
-            if not img_obj and isinstance(opt.get("image"), str) and opt["image"].startswith("data:image/"):
-                img_obj = save_image(
-                    opt["image"],
-                    alt_text=f"{name} - {label}",
-                    tags="attribute,option",
-                    linked_table="product_attribute",
-                    linked_page="product-detail",
-                    linked_id=parent.attr_id,
-                )
+            try:
+                if opt.get("image_id"):
+                    img_obj = Image.objects.filter(image_id=opt["image_id"]).first()
+                if not img_obj and isinstance(opt.get("image"), str) and opt["image"].startswith("data:image/"):
+                    # isolate per-image save to avoid poisoning main atomic on non-DB errors
+                    with transaction.atomic():
+                        img_obj = save_image(
+                            opt["image"],
+                            alt_text=f"{name} - {label}",
+                            tags="attribute,option",
+                            linked_table="product_attribute",
+                            linked_page="product-detail",
+                            linked_id=parent.attr_id,
+                        )
+            except (DatabaseError, IntegrityError):
+                logger.exception("DB error while saving attribute image; aborting")
+                raise
+            except Exception:
+                logger.exception("Non-DB error while saving attribute image; skipping image")
 
             Attribute.objects.create(
                 attr_id=opt.get("id") or f"ATOP-{uuid.uuid4().hex[:8].upper()}",
@@ -336,6 +382,10 @@ class SaveProductAPIView(APIView):
     def post(self, request):
         data = _parse_payload(request)
 
+        # Defensive: short-circuit truly invalid payloads before DB writes
+        if not (data.get('name') or '').strip():
+            return Response({"error": "Field 'name' is required."}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             # Ensure any DB error aborts work and rolls back before we return
             with transaction.atomic():
@@ -344,7 +394,7 @@ class SaveProductAPIView(APIView):
                 save_shipping_info(data, product)
                 save_product_variants(data, product)
                 save_product_subcategories(data, product)
-                save_product_images(data, product)        # now re-raises DB errors
+                save_product_images(data, product)  # DB errors re-raised
                 save_product_attributes(data, product)
 
             # If we got here, the atomic block committed successfully
@@ -354,7 +404,6 @@ class SaveProductAPIView(APIView):
             )
 
         except IntegrityError as e:
-            # Constraint / unique / FK issues → client or data problem
             logger.exception("SaveProduct IntegrityError (rolled back)")
             return Response(
                 {"error": "Integrity error while saving product", "detail": str(e)},
@@ -362,18 +411,16 @@ class SaveProductAPIView(APIView):
             )
 
         except DatabaseError as e:
-            # Any other DB error
             logger.exception("SaveProduct DatabaseError (rolled back)")
             return Response(
-                {"error": "Database error while saving product"+ str(e), "detail": str(e)},
+                {"error": "Database error while saving product", "detail": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
         except Exception as e:
-            # Non-DB errors (parsing, serialization, etc.)
             logger.exception("SaveProduct failed")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
 class DeleteProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -600,7 +647,8 @@ class ShowProductShippingInfoAPIView(APIView):
             if not product_id:
                 return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
 
-            shipping = ShippingInfo.objects.get(product_id=product_id)
+            # Use FK relation correctly
+            shipping = ShippingInfo.objects.get(product__product_id=product_id)
 
             data_out = {
                 "shipping_class": shipping.shipping_class,
@@ -874,7 +922,8 @@ class EditProductAPIView(APIView):
                 if not product:
                     continue
 
-                product.title = data.get('name', product.title)
+                if 'name' in data and (data.get('name') or '').strip():
+                    product.title = data.get('name').strip()
                 product.description = data.get('description', product.description)
                 product.brand = data.get('brand_title', product.brand)
                 if 'price' in data:
