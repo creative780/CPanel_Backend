@@ -1,10 +1,9 @@
-
 # Standard Library
 import json
 import uuid
 import logging
 import traceback
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from collections import defaultdict
 
 # Django
@@ -12,7 +11,7 @@ from django.http import Http404
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.utils.text import slugify
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import Prefetch
 
 # Django REST Framework
@@ -33,7 +32,6 @@ from .permissions import FrontendOnlyPermission
 
 logger = logging.getLogger(__name__)
 
-
 # -----------------------
 # Helpers
 # -----------------------
@@ -47,10 +45,14 @@ def _parse_payload(request):
     except Exception:
         return {}
 
-
 def _now():
     return timezone.now()
 
+def _to_decimal(val, default="0"):
+    try:
+        return Decimal(str(val))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal(default)
 
 # -----------------------
 # Save/Update Functions
@@ -59,9 +61,9 @@ def save_product_basic(data, is_edit=False, existing_product=None):
     now = _now()
     name = data.get('name')
     brand = data.get('brand_title', '')
-    price = float(data.get('price', 0))
-    discounted_price = float(data.get('discounted_price', 0))
-    tax_rate = float(data.get('tax_rate', 0))
+    price = _to_decimal(data.get('price', 0))
+    discounted_price = _to_decimal(data.get('discounted_price', 0))
+    tax_rate = _to_decimal(data.get('tax_rate', 0))
     price_calculator = data.get('price_calculator', '')
     video_url = data.get('video_url', '')
     description = data.get('description', '')
@@ -74,12 +76,13 @@ def save_product_basic(data, is_edit=False, existing_product=None):
     if is_edit and existing_product:
         product = existing_product
     else:
-        # Original "create new" logic retained
-        existing_map = ProductSubCategoryMap.objects.filter(
-            subcategory=subcategory_ids[0],
-            product__title=name
-        ).first()
-
+        # Correct FK filtering on subcategory
+        existing_map = (
+            ProductSubCategoryMap.objects
+            .select_related("product", "subcategory")
+            .filter(subcategory__subcategory_id=subcategory_ids[0], product__title=name)
+            .first()
+        )
         if existing_map:
             product = existing_map.product
         else:
@@ -115,9 +118,7 @@ def save_product_basic(data, is_edit=False, existing_product=None):
             'updated_at': now,
         }
     )
-
     return product
-
 
 def save_product_seo(data, product):
     now = _now()
@@ -129,7 +130,7 @@ def save_product_seo(data, product):
         defaults={
             "seo_id": unique_seo_id,
             "meta_keywords": [],
-            "slug": slugify(product.title),
+            "slug": slugify(product.title) or product.product_id.lower(),
             "created_at": now,
             "updated_at": now,
         }
@@ -153,17 +154,17 @@ def save_product_seo(data, product):
     seo.grouped_filters = clean_comma_array(data.get('groupedFilters', ''))
 
     try:
-        seo.slug = generate_unique_slug(slugify(product.title), instance=product)
-    except Exception as e:
+        desired_slug = slugify(product.title) or product.product_id.lower()
+        # ✅ instance must be SEO
+        seo.slug = generate_unique_slug(desired_slug, instance=seo)
+    except Exception:
         logger.exception("Slug generation failed")
-        seo.slug = slugify(product.title)
+        seo.slug = slugify(product.title) or product.product_id.lower()
 
     seo.updated_at = now
     seo.save()
 
-
 def save_shipping_info(data, product):
-    # Upsert with minimal logic; preserves original fields and behavior
     ShippingInfo.objects.update_or_create(
         product=product,
         defaults={
@@ -172,10 +173,9 @@ def save_shipping_info(data, product):
             'entered_by_type': 'admin',
             'shipping_class': ",".join(data.get("shippingClass", [])),
             'processing_time': data.get("processing_time", ""),
-            'created_at': _now(),  # only used on create; harmless on update
+            'created_at': _now(),
         }
     )
-
 
 def save_product_variants(data, product):
     ProductVariant.objects.filter(product=product).delete()
@@ -183,7 +183,9 @@ def save_product_variants(data, product):
     sizes = data.get("size", [])
     colors = data.get("colorVariants", [])
     materials = data.get("materialType", [])
-    printing_methods = data.get("printing_method", "")
+    printing_methods = data.get("printing_method", [])
+    if isinstance(printing_methods, str):
+        printing_methods = [printing_methods]
     add_ons = data.get("addOnOptions", [])
     fabric_finish = data.get("fabric_finish", "")
     combinations = data.get("variant_combinations", "")
@@ -195,7 +197,7 @@ def save_product_variants(data, product):
         color=",".join(colors),
         material_type=",".join(materials),
         fabric_finish=fabric_finish,
-        printing_methods=[printing_methods] if isinstance(printing_methods, str) else printing_methods,
+        printing_methods=printing_methods,
         add_on_options=add_ons,
     )
 
@@ -207,27 +209,30 @@ def save_product_variants(data, product):
             price_override=product.discounted_price
         )
 
-
 def save_product_subcategories(data, product):
-    subcategory_ids = data.get('subcategory_ids', [])
+    subcategory_ids = data.get('subcategory_ids', []) or []
 
     ProductSubCategoryMap.objects.filter(product=product).delete()
-    # Minimize DB hits by fetching all subs first
+
     if subcategory_ids:
         subs = {
             s.subcategory_id: s
             for s in SubCategory.objects.filter(subcategory_id__in=subcategory_ids)
         }
+        # De-dup ids to avoid accidental double links
+        seen = set()
         for sub_id in subcategory_ids:
+            if sub_id in seen:
+                continue
+            seen.add(sub_id)
             sub = subs.get(sub_id)
             if sub:
                 ProductSubCategoryMap.objects.create(product=product, subcategory=sub)
             else:
                 logger.warning("Subcategory not found: %s", sub_id)
 
-
 def save_product_images(data, product):
-    image_data_list = data.get('images', [])
+    image_data_list = data.get('images', []) or []
 
     # Delete existing images mapped to this product
     ProductImage.objects.filter(product=product).delete()
@@ -248,7 +253,6 @@ def save_product_images(data, product):
         except Exception:
             logger.exception("Image save error")
 
-
 def update_stock_status(inventory):
     quantity = inventory.stock_quantity
     low_stock = inventory.low_stock_alert
@@ -263,20 +267,16 @@ def update_stock_status(inventory):
     inventory.updated_at = _now()
     inventory.save()
 
-
 def save_product_attributes(data, product):
-    # accept any casing; frontend sends `custom_attributes`
     attrs = (
         data.get("attributes")
         or data.get("custom_attributes")
         or data.get("customAttributes")
         or []
     )
-
     if not isinstance(attrs, list):
         attrs = []
 
-    # wipe & rebuild (keeps UI and DB in sync)
     Attribute.objects.filter(product=product).delete()
 
     for idx, att in enumerate(attrs):
@@ -297,13 +297,11 @@ def save_product_attributes(data, product):
             if not label:
                 continue
 
-            # price
             try:
-                price_delta = Decimal(str(opt.get("price_delta") or 0))
+                price_delta = _to_decimal(opt.get("price_delta", 0))
             except Exception:
                 price_delta = Decimal("0")
 
-            # image
             img_obj = None
             if opt.get("image_id"):
                 img_obj = Image.objects.filter(image_id=opt["image_id"]).first()
@@ -328,7 +326,6 @@ def save_product_attributes(data, product):
                 order=o_idx,
             )
 
-
 # -----------------------
 # API Views
 # -----------------------
@@ -337,8 +334,8 @@ class SaveProductAPIView(APIView):
 
     @transaction.atomic
     def post(self, request):
+        data = _parse_payload(request)
         try:
-            data = _parse_payload(request)
             product = save_product_basic(data)
             save_product_seo(data, product)
             save_shipping_info(data, product)
@@ -347,10 +344,12 @@ class SaveProductAPIView(APIView):
             save_product_images(data, product)
             save_product_attributes(data, product)
             return Response({'success': True, 'product_id': product.product_id}, status=status.HTTP_200_OK)
+        except IntegrityError as e:
+            logger.exception("SaveProduct IntegrityError (transaction rolled back)")
+            return Response({'error': 'Integrity error while saving product', 'detail': str(e)}, status=500)
         except Exception as e:
             logger.exception("SaveProduct failed")
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response({'error': str(e)}, status=500)
 
 class DeleteProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -360,15 +359,13 @@ class DeleteProductAPIView(APIView):
         try:
             data = _parse_payload(request)
             ids = data.get('ids', [])
-            _ = data.get('confirm', False)  # kept for parity
+            _ = data.get('confirm', False)
 
             if not ids:
                 return Response({'error': 'No product IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Fetch all products upfront
             products = list(Product.objects.filter(product_id__in=ids))
             for product in products:
-                # Clean children explicitly (preserve existing behavior)
                 VariantCombination.objects.filter(variant__product=product).delete()
                 ProductVariant.objects.filter(product=product).delete()
                 ProductInventory.objects.filter(product=product).delete()
@@ -384,8 +381,6 @@ class DeleteProductAPIView(APIView):
             logger.exception("DeleteProduct failed")
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# ...imports stay the same...
-
 class ShowProductsAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -393,8 +388,6 @@ class ShowProductsAPIView(APIView):
         products = list(Product.objects.all().order_by('order'))
         if not products:
             return Response([], status=status.HTTP_200_OK)
-
-        product_pks = [p.pk for p in products]
 
         # --- images (first/primary) ---
         first_image_by_pk = {}
@@ -448,15 +441,19 @@ class ShowProductsAPIView(APIView):
                 "name": getattr(getattr(submap_first, "subcategory", None), "name", None),
             }
 
-            # all subcats (new)
+            # all subcats (new) — de-dup on id
             subs_all = all_submaps_by_pk.get(p.pk, [])
-            subcategories = [
-                {
-                    "id": sm.subcategory.subcategory_id,
-                    "name": sm.subcategory.name,
-                }
-                for sm in subs_all if getattr(sm, "subcategory", None)
-            ]
+            seen_ids = set()
+            subcategories = []
+            for sm in subs_all:
+                if getattr(sm, "subcategory", None):
+                    sid = sm.subcategory.subcategory_id
+                    if sid and sid not in seen_ids:
+                        seen_ids.add(sid)
+                        subcategories.append({
+                            "id": sid,
+                            "name": sm.subcategory.name,
+                        })
 
             # inventory
             inv = inv_by_pk.get(p.pk)
@@ -468,7 +465,7 @@ class ShowProductsAPIView(APIView):
                 "name": p.title,
                 "image": image_url,
                 "subcategory": subcategory_legacy,     # kept for compatibility
-                "subcategories": subcategories,        # ✅ NEW: all mappings
+                "subcategories": subcategories,        # ✅ unique list
                 "stock_status": stock_status,
                 "stock_quantity": stock_quantity,
                 "price": str(p.price),
@@ -516,7 +513,7 @@ class ShowSpecificProductAPIView(APIView):
             "brand_title": product.brand,
             "price": str(product.price),
             "discounted_price": str(product.discounted_price),
-            "tax_rate": product.tax_rate,
+            "tax_rate": str(product.tax_rate) if product.tax_rate is not None else None,
             "price_calculator": product.price_calculator,
             "video_url": product.video_url,
             "fit_description": product.description,
@@ -527,7 +524,6 @@ class ShowSpecificProductAPIView(APIView):
         }
 
         return Response(response, status=status.HTTP_200_OK)
-
 
 class ShowProductVariantAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -566,12 +562,10 @@ class ShowProductVariantAPIView(APIView):
                 "fabric_finish": list(fabric_finishes),
                 "add_on_options": list(add_ons)
             }
-
             return Response(data_out, status=status.HTTP_200_OK)
         except Exception as e:
             logger.exception("ShowProductVariant failed")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class ShowProductShippingInfoAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -589,7 +583,6 @@ class ShowProductShippingInfoAPIView(APIView):
                 "shipping_class": shipping.shipping_class,
                 "processing_time": shipping.processing_time
             }
-
             return Response(data_out, status=status.HTTP_200_OK)
         except ShippingInfo.DoesNotExist:
             return Response({}, status=status.HTTP_404_NOT_FOUND)
@@ -609,7 +602,6 @@ class ShowProductOtherDetailsAPIView(APIView):
 
             product = get_object_or_404(Product, product_id=product_id)
 
-            # primary first, then deterministic
             images = (
                 ProductImage.objects
                 .filter(product=product)
@@ -619,13 +611,19 @@ class ShowProductOtherDetailsAPIView(APIView):
 
             image_urls = []
             images_with_ids = []
+            seen_image_ids = set()
             for rel in images:
-                d = format_image_object(rel, request=request)  # -> {"url": ..., "alt_text": ...}
-                if d and d.get("url"):
-                    image_urls.append(d["url"])
+                d = format_image_object(rel, request=request)
+                if not d:
+                    continue
+                url = d.get("url")
+                iid = getattr(rel.image, "image_id", None)
+                if url and iid and iid not in seen_image_ids:
+                    seen_image_ids.add(iid)
+                    image_urls.append(url)
                     images_with_ids.append({
-                        "id": getattr(rel.image, "image_id", None),
-                        "url": d["url"],
+                        "id": iid,
+                        "url": url,
                         "is_primary": bool(rel.is_primary),
                     })
 
@@ -634,6 +632,9 @@ class ShowProductOtherDetailsAPIView(APIView):
                 .filter(product=product)
                 .values_list('subcategory__subcategory_id', flat=True)
             )
+            # de-dup while preserving order
+            seen = set()
+            subcategory_ids = [sid for sid in subcategory_ids if not (sid in seen or seen.add(sid))]
 
             return Response({
                 "images": image_urls,                 # legacy: list[str]
@@ -646,7 +647,6 @@ class ShowProductOtherDetailsAPIView(APIView):
         except Exception as e:
             logger.exception("ShowProductOtherDetails failed")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class ShowProductSEOAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -674,14 +674,12 @@ class ShowProductSEOAPIView(APIView):
                 "custom_tags": seo.custom_tags,
                 "grouped_filters": seo.grouped_filters
             }
-
             return Response(data_out, status=status.HTTP_200_OK)
         except ProductSEO.DoesNotExist:
             return Response({}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.exception("ShowProductSEO failed")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class ShowVariantCombinationsAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -703,18 +701,15 @@ class ShowVariantCombinationsAPIView(APIView):
                 {"description": c["description"], "price_override": str(c["price_override"])}
                 for c in combos_qs
             ]
-
             return Response({"variant_combinations": combos}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.exception("ShowVariantCombinations failed")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 class ShowProductAttributesAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def post(self, request):
-        # robust payload parsing
         try:
             data = _parse_payload(request)
         except Exception:
@@ -724,9 +719,7 @@ class ShowProductAttributesAPIView(APIView):
         if not product_id:
             return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # if your Product uses "product_id" (string SKU), keep this:
         product = get_object_or_404(Product, product_id=product_id)
-        # if the PK is "id" instead, use: product = get_object_or_404(Product, id=product_id)
 
         parents = (
             Attribute.objects
@@ -743,7 +736,11 @@ class ShowProductAttributesAPIView(APIView):
         out = []
         for p in parents:
             opts = []
+            seen_opt_ids = set()
             for opt in p.options.all():
+                if opt.attr_id in seen_opt_ids:
+                    continue
+                seen_opt_ids.add(opt.attr_id)
                 img_dict = format_image_object(opt.image, request=request) if getattr(opt, "image", None) else None
                 opts.append({
                     "id": opt.attr_id,
@@ -777,25 +774,19 @@ class SetProductThumbnailAPIView(APIView):
             product = get_object_or_404(Product, product_id=product_id)
             image = get_object_or_404(Image, pk=image_id)
 
-            # Ensure relation exists
             rel_qs = ProductImage.objects.select_for_update().filter(product=product)
             if not rel_qs.filter(image=image).exists():
                 return Response({"error": "Image does not belong to this product"}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Reset all to non-primary
             rel_qs.update(is_primary=False)
-
-            # Set selected as primary
             rel = rel_qs.get(image=image)
             rel.is_primary = True
             rel.save(update_fields=["is_primary"])
 
-            # Return fresh thumbnail URL (or None)
             d = format_image_object(rel, request=request)
             thumb_url = d["url"] if d and d.get("url") else None
 
             return Response({"success": True, "thumbnail_url": thumb_url}, status=status.HTTP_200_OK)
-
         except Http404:
             return Response({"error": "Product or Image not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
@@ -811,12 +802,10 @@ class UpdateProductOrderAPIView(APIView):
             data = _parse_payload(request)
             updates = data.get("products", []) or []
 
-            # Build map from product_id → desired order
             order_map = {item.get("id"): idx for idx, item in enumerate(updates) if item.get("id")}
             if not order_map:
                 return Response({"success": True}, status=status.HTTP_200_OK)
 
-            # Fetch and bulk update
             products = list(Product.objects.filter(product_id__in=order_map.keys()))
             for p in products:
                 p.order = order_map.get(p.product_id, p.order)
@@ -844,7 +833,6 @@ class EditProductAPIView(APIView):
 
             force_replace = bool(data.get('force_replace_images'))
             incoming_images_raw = data.get('images') or []
-            # Only treat `images` as real replacements if we actually received base64 data URLs
             incoming_images = [
                 s for s in incoming_images_raw
                 if isinstance(s, str) and s.startswith('data:image/')
@@ -863,20 +851,21 @@ class EditProductAPIView(APIView):
                 if not product:
                     continue
 
-                # --- basic fields ---
                 product.title = data.get('name', product.title)
                 product.description = data.get('description', product.description)
                 product.brand = data.get('brand_title', product.brand)
-                product.price = float(data.get('price', product.price))
-                product.discounted_price = float(data.get('discounted_price', product.discounted_price))
-                product.tax_rate = float(data.get('tax_rate', product.tax_rate))
+                if 'price' in data:
+                    product.price = _to_decimal(data.get('price', product.price))
+                if 'discounted_price' in data:
+                    product.discounted_price = _to_decimal(data.get('discounted_price', product.discounted_price))
+                if 'tax_rate' in data:
+                    product.tax_rate = _to_decimal(data.get('tax_rate', product.tax_rate))
                 product.price_calculator = data.get('price_calculator', product.price_calculator)
                 product.video_url = data.get('video_url', product.video_url)
                 product.status = data.get('status', product.status)
                 product.updated_at = _now()
                 product.save()
 
-                # --- inventory ---
                 inventory, _ = ProductInventory.objects.get_or_create(
                     product=product,
                     defaults={
@@ -892,14 +881,12 @@ class EditProductAPIView(APIView):
                     inventory.low_stock_alert = int(data['low_stock_alert'])
                 update_stock_status(inventory)
 
-                # --- keep parity with CREATE for all “details” ---
                 save_product_seo(data, product)
                 save_shipping_info(data, product)
                 save_product_variants(data, product)
                 save_product_subcategories(data, product)
-                save_product_attributes(data, product)   # ✅ parity retained
+                save_product_attributes(data, product)
 
-                # --- images (replace only when there are new base64s) ---
                 if force_replace and has_new_images:
                     save_product_images(
                         {
@@ -908,7 +895,6 @@ class EditProductAPIView(APIView):
                         },
                         product
                     )
-                # else: do nothing → existing gallery stays intact
 
                 updated_products.append(product.product_id)
 
@@ -917,86 +903,6 @@ class EditProductAPIView(APIView):
         except Exception as e:
             logger.exception("EditProduct failed")
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class LinkProductToSubcategoriesAPIView(APIView):
-    permission_classes = [FrontendOnlyPermission]
-
-    @transaction.atomic
-    def post(self, request):
-        try:
-            data = _parse_payload(request)
-            product_id = data.get("product_id")
-            if not product_id:
-                return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Accept either 'subcategory_ids' (list) or single 'subcategory_id'
-            sub_ids = data.get("subcategory_ids")
-            if not sub_ids:
-                single = data.get("subcategory_id")
-                if isinstance(single, str):
-                    sub_ids = [single]
-                elif isinstance(single, list):
-                    sub_ids = single  # just in case caller misnamed the key
-                else:
-                    sub_ids = []
-
-            # When replace=True, treat provided set as the source of truth (remove others)
-            replace = bool(data.get("replace", False))
-
-            product = get_object_or_404(Product, product_id=product_id)
-
-            # Fetch valid subcategories in one query
-            valid_subs = list(SubCategory.objects.filter(subcategory_id__in=sub_ids))
-            found_ids = {s.subcategory_id for s in valid_subs}
-            missing_ids = [sid for sid in (sub_ids or []) if sid not in found_ids]
-
-            # Existing maps
-            existing_maps = list(
-                ProductSubCategoryMap.objects.select_for_update().filter(product=product)
-            )
-            existing_ids = {m.subcategory.subcategory_id for m in existing_maps}
-
-            # Determine adds/removes
-            to_add_ids = found_ids - existing_ids
-            to_remove_ids = set()
-            if replace:
-                to_remove_ids = existing_ids - found_ids
-
-            # Add new links (ignore conflicts just in case of race)
-            to_add = [ProductSubCategoryMap(product=product, subcategory=s) for s in valid_subs if s.subcategory_id in to_add_ids]
-            if to_add:
-                ProductSubCategoryMap.objects.bulk_create(to_add, ignore_conflicts=True)
-
-            # Remove links not in provided list if replace=True
-            removed = 0
-            if to_remove_ids:
-                removed = ProductSubCategoryMap.objects.filter(
-                    product=product, subcategory__subcategory_id__in=to_remove_ids
-                ).delete()[0]
-
-            # Build current set after changes
-            current_ids = list(
-                ProductSubCategoryMap.objects.filter(product=product)
-                .values_list("subcategory__subcategory_id", flat=True)
-            )
-
-            return Response(
-                {
-                    "success": True,
-                    "product_id": product_id,
-                    "added": sorted(list(to_add_ids)),
-                    "removed": sorted(list(to_remove_ids)) if replace else [],
-                    "skipped_missing": sorted(missing_ids),
-                    "linked_subcategory_ids": sorted(current_ids),
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        except Http404:
-            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            logger.exception("LinkProductToSubcategories failed")
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 def _delete_product_full(product):
     """Hard-delete product and all dependent rows (parity with DeleteProductAPIView)."""
@@ -1010,6 +916,80 @@ def _delete_product_full(product):
     Image.objects.filter(linked_table='product', linked_id=product.product_id).delete()
     product.delete()
 
+class LinkProductToSubcategoriesAPIView(APIView):
+    permission_classes = [FrontendOnlyPermission]
+
+    @transaction.atomic
+    def post(self, request):
+        try:
+            data = _parse_payload(request)
+            product_id = data.get("product_id")
+            if not product_id:
+                return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
+
+            sub_ids = data.get("subcategory_ids")
+            if not sub_ids:
+                single = data.get("subcategory_id")
+                if isinstance(single, str):
+                    sub_ids = [single]
+                elif isinstance(single, list):
+                    sub_ids = single
+                else:
+                    sub_ids = []
+
+            replace = bool(data.get("replace", False))
+
+            product = get_object_or_404(Product, product_id=product_id)
+
+            valid_subs = list(SubCategory.objects.filter(subcategory_id__in=sub_ids))
+            found_ids = {s.subcategory_id for s in valid_subs}
+            missing_ids = [sid for sid in (sub_ids or []) if sid not in found_ids]
+
+            existing_maps = list(
+                ProductSubCategoryMap.objects.select_for_update().filter(product=product)
+            )
+            existing_ids = {m.subcategory.subcategory_id for m in existing_maps}
+
+            to_add_ids = found_ids - existing_ids
+            to_remove_ids = set()
+            if replace:
+                to_remove_ids = existing_ids - found_ids
+
+            to_add = [ProductSubCategoryMap(product=product, subcategory=s) for s in valid_subs if s.subcategory_id in to_add_ids]
+            if to_add:
+                ProductSubCategoryMap.objects.bulk_create(to_add, ignore_conflicts=True)
+
+            removed = 0
+            if to_remove_ids:
+                removed = ProductSubCategoryMap.objects.filter(
+                    product=product, subcategory__subcategory_id__in=to_remove_ids
+                ).delete()[0]
+
+            current_ids = list(
+                ProductSubCategoryMap.objects.filter(product=product)
+                .values_list("subcategory__subcategory_id", flat=True)
+            )
+            # de-dup for UI safety
+            seen = set()
+            current_ids = [sid for sid in current_ids if not (sid in seen or seen.add(sid))]
+
+            return Response(
+                {
+                    "success": True,
+                    "product_id": product_id,
+                    "added": sorted(list(to_add_ids)),
+                    "removed": sorted(list(to_remove_ids)) if replace else [],
+                    "skipped_missing": sorted(missing_ids),
+                    "linked_subcategory_ids": sorted(current_ids),
+                },
+                status=status.HTTP_200_OK,
+            )
+        except Http404:
+            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.exception("LinkProductToSubcategories failed")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class UnlinkProductFromSubcategoriesAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -1021,7 +1001,6 @@ class UnlinkProductFromSubcategoriesAPIView(APIView):
             if not product_id:
                 return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Accept 'subcategory_ids' list or single 'subcategory_id'
             sub_ids = data.get("subcategory_ids")
             if not sub_ids:
                 single = data.get("subcategory_id")
@@ -1035,14 +1014,12 @@ class UnlinkProductFromSubcategoriesAPIView(APIView):
 
             product = get_object_or_404(Product, product_id=product_id)
 
-            # Validate provided subcategories exist
             valid_ids = set(
                 SubCategory.objects.filter(subcategory_id__in=sub_ids)
                 .values_list("subcategory_id", flat=True)
             )
             skipped_missing = [sid for sid in sub_ids if sid not in valid_ids]
 
-            # Lock current links and compute which to remove
             existing_qs = ProductSubCategoryMap.objects.select_for_update().filter(product=product)
             existing_ids = set(
                 existing_qs.values_list("subcategory__subcategory_id", flat=True)
@@ -1058,11 +1035,13 @@ class UnlinkProductFromSubcategoriesAPIView(APIView):
                     subcategory__subcategory_id__in=to_remove_ids
                 ).delete()[0]
 
-            # Remaining links after this operation
             remaining_ids = list(
                 ProductSubCategoryMap.objects.filter(product=product)
                 .values_list("subcategory__subcategory_id", flat=True)
             )
+            # de-dup
+            seen = set()
+            remaining_ids = [sid for sid in remaining_ids if not (sid in seen or seen.add(sid))]
 
             product_deleted = False
             if len(remaining_ids) == 0:
@@ -1082,7 +1061,6 @@ class UnlinkProductFromSubcategoriesAPIView(APIView):
                 },
                 status=status.HTTP_200_OK,
             )
-
         except Http404:
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
