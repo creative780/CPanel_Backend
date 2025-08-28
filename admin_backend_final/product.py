@@ -2,7 +2,6 @@
 import json
 import uuid
 import logging
-import traceback
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
 from django.db import DatabaseError
@@ -89,7 +88,6 @@ def save_product_basic(data, is_edit=False, existing_product=None):
     if is_edit and existing_product:
         product = existing_product
     else:
-        # Correct FK filtering on subcategory
         existing_map = (
             ProductSubCategoryMap.objects
             .select_related("product", "subcategory")
@@ -113,7 +111,7 @@ def save_product_basic(data, is_edit=False, existing_product=None):
     product.brand = brand
     product.price = price
     product.discounted_price = discounted_price
-    product.tax_rate = tax_rate
+    product.tax_rate = float(tax_rate)
     product.price_calculator = price_calculator
     product.video_url = video_url
     product.status = status_val
@@ -155,7 +153,6 @@ def save_product_seo(data, product):
     seo.image_alt_text = data.get('image_alt_text', '')
     seo.meta_title = data.get('meta_title', '')
     seo.meta_description = data.get('meta_description', '')
-    # normalize keywords to list[str]
     mk = data.get('meta_keywords', [])
     seo.meta_keywords = _as_list(mk)
     seo.open_graph_title = data.get('open_graph_title', '')
@@ -164,13 +161,12 @@ def save_product_seo(data, product):
     seo.canonical_url = data.get('canonical_url', '')
     seo.json_ld = data.get('json_ld', '')
 
-    # ✅ preserved
+    # Preserved custom fields
     seo.custom_tags = clean_comma_array(data.get('customTags', ''))
     seo.grouped_filters = clean_comma_array(data.get('groupedFilters', ''))
 
     try:
         desired_slug = slugify(product.title) or product.product_id.lower()
-        # 🔧 pass the Product (not the SEO) so exclude(product=...) is valid (per util impl)
         seo.slug = generate_unique_slug(desired_slug, instance=product)
     except Exception:
         logger.exception("Slug generation failed")
@@ -200,8 +196,7 @@ def save_product_variants(data, product):
     sizes = _as_list(data.get("size", []))
     colors = _as_list(data.get("colorVariants", []))
     materials = _as_list(data.get("materialType", []))
-    printing_methods = data.get("printing_method", [])
-    printing_methods = _as_list(printing_methods)
+    printing_methods = _as_list(data.get("printing_method", []))
     add_ons = _as_list(data.get("addOnOptions", []))
     fabric_finish = (data.get("fabric_finish", "") or "").strip()
     combinations = data.get("variant_combinations", "")
@@ -235,7 +230,6 @@ def save_product_subcategories(data, product):
             s.subcategory_id: s
             for s in SubCategory.objects.filter(subcategory_id__in=subcategory_ids)
         }
-        # De-dup ids to avoid accidental double links
         seen = set()
         for sub_id in subcategory_ids:
             if sub_id in seen:
@@ -260,18 +254,16 @@ def save_product_images(data, product):
         ProductImage.objects.filter(product=product).delete()
         Image.objects.filter(linked_table='product', linked_id=product.product_id).delete()
     except (DatabaseError, IntegrityError):
-        # propagate DB issues to abort the transaction
         logger.exception("Image cleanup DB error")
         raise
     except Exception:
         logger.exception("Non-DB error during image cleanup; continuing")
 
     for img_data in image_data_list:
-        # Only accept base64/data URLs or known valid strings; skip junk early
         if not isinstance(img_data, str) or not img_data.strip():
             continue
         try:
-            # Wrap each image in its own savepoint; non-DB errors get swallowed without poisoning the outer atomic
+            # Per-image savepoint: tolerate non-DB failures without poisoning the outer atomic
             with transaction.atomic():
                 image = save_image(
                     img_data,
@@ -285,11 +277,9 @@ def save_product_images(data, product):
                     ProductImage.objects.create(product=product, image=image)
         except (DatabaseError, IntegrityError):
             logger.exception("DB error while saving an image; aborting whole save")
-            # Re-raise to cancel the entire product save
             raise
         except Exception:
             logger.exception("Image save error (non-DB); skipping this image")
-            # continue to next image
 
 def update_stock_status(inventory):
     quantity = inventory.stock_quantity
@@ -345,7 +335,6 @@ def save_product_attributes(data, product):
                 if opt.get("image_id"):
                     img_obj = Image.objects.filter(image_id=opt["image_id"]).first()
                 if not img_obj and isinstance(opt.get("image"), str) and opt["image"].startswith("data:image/"):
-                    # isolate per-image save to avoid poisoning main atomic on non-DB errors
                     with transaction.atomic():
                         img_obj = save_image(
                             opt["image"],
@@ -382,12 +371,10 @@ class SaveProductAPIView(APIView):
     def post(self, request):
         data = _parse_payload(request)
 
-        # Defensive: short-circuit truly invalid payloads before DB writes
         if not (data.get('name') or '').strip():
             return Response({"error": "Field 'name' is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # Ensure any DB error aborts work and rolls back before we return
             with transaction.atomic():
                 product = save_product_basic(data)
                 save_product_seo(data, product)
@@ -397,7 +384,6 @@ class SaveProductAPIView(APIView):
                 save_product_images(data, product)  # DB errors re-raised
                 save_product_attributes(data, product)
 
-            # If we got here, the atomic block committed successfully
             return Response(
                 {"success": True, "product_id": product.product_id},
                 status=status.HTTP_200_OK
@@ -413,7 +399,7 @@ class SaveProductAPIView(APIView):
         except DatabaseError as e:
             logger.exception("SaveProduct DatabaseError (rolled back)")
             return Response(
-                {"error": "Database error while saving product" + str(e), "detail": str(e)},
+                {"error": "Database error while saving product", "detail": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -535,7 +521,7 @@ class ShowProductsAPIView(APIView):
                 "name": p.title,
                 "image": image_url,
                 "subcategory": subcategory_legacy,     # kept for compatibility
-                "subcategories": subcategories,        # ✅ unique list
+                "subcategories": subcategories,        # unique list
                 "stock_status": stock_status,
                 "stock_quantity": stock_quantity,
                 "price": str(p.price),
@@ -647,7 +633,6 @@ class ShowProductShippingInfoAPIView(APIView):
             if not product_id:
                 return Response({"error": "Missing product_id"}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Use FK relation correctly
             shipping = ShippingInfo.objects.get(product__product_id=product_id)
 
             data_out = {
@@ -703,7 +688,6 @@ class ShowProductOtherDetailsAPIView(APIView):
                 .filter(product=product)
                 .values_list('subcategory__subcategory_id', flat=True)
             )
-            # de-dup while preserving order
             seen = set()
             subcategory_ids = [sid for sid in subcategory_ids if not (sid in seen or seen.add(sid))]
 
@@ -931,7 +915,7 @@ class EditProductAPIView(APIView):
                 if 'discounted_price' in data:
                     product.discounted_price = _to_decimal(data.get('discounted_price', product.discounted_price))
                 if 'tax_rate' in data:
-                    product.tax_rate = _to_decimal(data.get('tax_rate', product.tax_rate))
+                    product.tax_rate = float(_to_decimal(data.get('tax_rate', product.tax_rate)))
                 product.price_calculator = data.get('price_calculator', product.price_calculator)
                 product.video_url = data.get('video_url', product.video_url)
                 product.status = data.get('status', product.status)
@@ -1041,7 +1025,6 @@ class LinkProductToSubcategoriesAPIView(APIView):
                 ProductSubCategoryMap.objects.filter(product=product)
                 .values_list("subcategory__subcategory_id", flat=True)
             )
-            # de-dup for UI safety
             seen = set()
             current_ids = [sid for sid in current_ids if not (sid in seen or seen.add(sid))]
 
@@ -1111,7 +1094,6 @@ class UnlinkProductFromSubcategoriesAPIView(APIView):
                 ProductSubCategoryMap.objects.filter(product=product)
                 .values_list("subcategory__subcategory_id", flat=True)
             )
-            # de-dup
             seen = set()
             remaining_ids = [sid for sid in remaining_ids if not (sid in seen or seen.add(sid))]
 
