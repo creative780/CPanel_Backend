@@ -365,7 +365,7 @@ class SaveProductAPIView(APIView):
             # Any other DB error
             logger.exception("SaveProduct DatabaseError (rolled back)")
             return Response(
-                {"error": "Database error while saving product", "detail": str(e)},
+                {"error": "Database error while saving product"+ str(e), "detail": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
