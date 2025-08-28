@@ -1,16 +1,14 @@
-
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings  # for AUTH_USER_MODEL-safe FKs
 from decimal import Decimal
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 # === USER AND ADMIN ===
 class User(AbstractUser):
-    # NOTE: You already set AUTH_USER_MODEL = 'admin_backend_final.User' in settings.py
-    # Keeping your schema as-is to avoid breaking migrations/data.
     user_id = models.CharField(primary_key=True, max_length=100)
     email = models.EmailField(unique=True, db_index=True)
-    password_hash = models.CharField(max_length=255)  # separate from AbstractUser.password; keep if you use it
+    password_hash = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -141,16 +139,33 @@ class Product(models.Model):
     video_url = models.URLField(blank=True, null=True)
     status = models.CharField(max_length=50, db_index=True)
     created_by = models.CharField(max_length=100)
-    created_by_type = models.CharField(max_length=10, choices=[('admin', 'Admin'), ('user', 'User')])
+    created_by_type = models.CharField(
+        max_length=10, choices=[('admin', 'Admin'), ('user', 'User')]
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     order = models.PositiveIntegerField(default=0)
+
+    # New rating system
+    rating = models.FloatField(
+        default=0.0,
+        validators=[MinValueValidator(0.0), MaxValueValidator(5.0)],
+        help_text="Allowed values: 0, 0.5, 1, ... , 5"
+    )
+    rating_count = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ["order", "title"]
 
     def __str__(self):
         return self.title
+
+    def set_rating(self, new_rating):
+        allowed_values = [x * 0.5 for x in range(11)] 
+        if new_rating not in allowed_values:
+            raise ValueError
+        self.rating = new_rating
+        self.save()
 
 class ProductInventory(models.Model):
     inventory_id = models.CharField(primary_key=True, max_length=100)
@@ -442,24 +457,28 @@ class FirstCarousel(models.Model):
 
     def __str__(self):
         return self.title
-
+    
 class FirstCarouselImage(models.Model):
-    carousel = models.ForeignKey(FirstCarousel, on_delete=models.CASCADE, related_name="images")
+    carousel = models.ForeignKey(
+        FirstCarousel, 
+        on_delete=models.CASCADE, 
+        related_name="images"
+    )
     image = models.ForeignKey('Image', on_delete=models.CASCADE)
     title = models.CharField(max_length=255, default="", blank=True)
 
-    # Be explicit about Category’s Char PK and the physical DB column name
-    category = models.ForeignKey(
-        'Category',
-        to_field='category_id',          # target PK is CharField
-        db_column='category_id',         # create/use column literally named category_id
+    # Now linked to SubCategory instead of Category
+    subcategory = models.ForeignKey(
+        'SubCategory',
+        to_field='subcategory_id',        # use the Char PK
+        db_column='subcategory_id',       # column literally named subcategory_id
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='first_carousel_images',
     )
 
-    caption = models.CharField(max_length=255, default="", blank=True)  # legacy
+    caption = models.CharField(max_length=255, default="", blank=True)
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -469,22 +488,27 @@ class SecondCarousel(models.Model):
 
     def __str__(self):
         return self.title
+
 class SecondCarouselImage(models.Model):
-    carousel = models.ForeignKey(SecondCarousel, on_delete=models.CASCADE, related_name="images")
+    carousel = models.ForeignKey(
+        SecondCarousel, 
+        on_delete=models.CASCADE, 
+        related_name="images"
+    )
     image = models.ForeignKey('Image', on_delete=models.CASCADE)
     title = models.CharField(max_length=255, default="", blank=True)
 
-    # Be explicit about Category’s Char PK and the physical DB column name
-    category = models.ForeignKey(
-        'Category',
-        to_field='category_id',          # target PK is CharField
-        db_column='category_id',         # create/use column literally named category_id
+    # Now linked to SubCategory instead of Category
+    subcategory = models.ForeignKey(
+        'SubCategory',
+        to_field='subcategory_id',
+        db_column='subcategory_id',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='second_carousel_images',
     )
 
-    caption = models.CharField(max_length=255, default="", blank=True)  # legacy
+    caption = models.CharField(max_length=255, default="", blank=True)
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -65,7 +65,7 @@ def _as_list(val):
 
 # -----------------------
 # Save/Update Functions
-# -----------------------
+
 def save_product_basic(data, is_edit=False, existing_product=None):
     now = _now()
     name = (data.get('name') or '').strip()
@@ -84,6 +84,19 @@ def save_product_basic(data, is_edit=False, existing_product=None):
     low_stock_alert = int(data.get('low_stock_alert', 0) or 0)
     stock_status = data.get('stock_status') or ('In Stock' if quantity > 0 else 'Out Of Stock')
     subcategory_ids = data.get('subcategory_ids', ['DW-DEFAULTSUB-001'])
+
+    # --- rating inputs (optional) ---
+    def _coerce_rating(val, fallback):
+        try:
+            v = float(val)
+        except (TypeError, ValueError):
+            return fallback
+        # snap to nearest 0.5 and clamp 0..5
+        v = max(0.0, min(5.0, round(v * 2) / 2.0))
+        return v
+
+    incoming_rating = data.get('rating', None)
+    incoming_rating_count = data.get('rating_count', None)
 
     if is_edit and existing_product:
         product = existing_product
@@ -116,6 +129,18 @@ def save_product_basic(data, is_edit=False, existing_product=None):
     product.video_url = video_url
     product.status = status_val
     product.updated_at = now
+
+    # Apply rating only if provided; preserve existing otherwise
+    if incoming_rating is not None:
+        product.rating = _coerce_rating(incoming_rating, getattr(product, "rating", 0.0))
+    if incoming_rating_count is not None:
+        try:
+            rc = int(incoming_rating_count)
+            product.rating_count = max(0, rc)
+        except (TypeError, ValueError):
+            # ignore bad input; keep existing
+            pass
+
     product.save()
 
     # Inventory Handling (atomic upsert)
@@ -436,7 +461,6 @@ class DeleteProductAPIView(APIView):
         except Exception as e:
             logger.exception("DeleteProduct failed")
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 class ShowProductsAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -526,6 +550,9 @@ class ShowProductsAPIView(APIView):
                 "stock_quantity": stock_quantity,
                 "price": str(p.price),
                 "printing_methods": list(pm_by_pk.get(p.pk, set())),
+                # NEW
+                "rating": float(getattr(p, "rating", 0.0)) if getattr(p, "rating", None) is not None else 0.0,
+                "rating_count": int(getattr(p, "rating_count", 0)),
             })
 
         return Response(out, status=status.HTTP_200_OK)
@@ -576,10 +603,14 @@ class ShowSpecificProductAPIView(APIView):
             "stock_status": stock_status,
             "stock_quantity": stock_quantity,
             "low_stock_alert": low_stock_alert,
-            "subcategory": subcategory_data
+            "subcategory": subcategory_data,
+            # NEW
+            "rating": float(getattr(product, "rating", 0.0)) if getattr(product, "rating", None) is not None else 0.0,
+            "rating_count": int(getattr(product, "rating_count", 0)),
         }
 
         return Response(response, status=status.HTTP_200_OK)
+
 
 class ShowProductVariantAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -894,6 +925,15 @@ class EditProductAPIView(APIView):
             ]
             has_new_images = len(incoming_images) > 0
 
+            # local rating coercer (same logic as save)
+            def _coerce_rating(val, fallback):
+                try:
+                    v = float(val)
+                except (TypeError, ValueError):
+                    return fallback
+                v = max(0.0, min(5.0, round(v * 2) / 2.0))
+                return v
+
             updated_products = []
 
             for product_id in product_ids:
@@ -919,6 +959,17 @@ class EditProductAPIView(APIView):
                 product.price_calculator = data.get('price_calculator', product.price_calculator)
                 product.video_url = data.get('video_url', product.video_url)
                 product.status = data.get('status', product.status)
+
+                # NEW: rating fields (optional, only update if provided)
+                if 'rating' in data:
+                    product.rating = _coerce_rating(data.get('rating'), getattr(product, "rating", 0.0))
+                if 'rating_count' in data:
+                    try:
+                        rc = int(data.get('rating_count'))
+                        product.rating_count = max(0, rc)
+                    except (TypeError, ValueError):
+                        pass
+
                 product.updated_at = _now()
                 product.save()
 
@@ -959,6 +1010,7 @@ class EditProductAPIView(APIView):
         except Exception as e:
             logger.exception("EditProduct failed")
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 def _delete_product_full(product):
     """Hard-delete product and all dependent rows (parity with DeleteProductAPIView)."""

@@ -33,29 +33,27 @@ class FirstCarouselAPIView(APIView):
                     'images': []
                 }, status=status.HTTP_200_OK)
 
-            # Keep consistent ordering
             images = (
                 carousel.images
                 .order_by("order")
-                .select_related("image", "category")
+                .select_related("image", "subcategory")
                 .all()
             )
 
             image_data = []
             for img in images:
-                category_obj = None
-                if img.category:
-                    # NOTE: Category PK is CharField (category_id). Use .pk for portability.
-                    category_obj = {
-                        'id': img.category.pk,
-                        'name': getattr(img.category, 'name', ''),
-                        'slug': getattr(img.category, 'slug', ''),
+                subcategory_obj = None
+                if img.subcategory:
+                    subcategory_obj = {
+                        'id': img.subcategory.pk,                          # CharField PK (subcategory_id)
+                        'name': getattr(img.subcategory, 'name', ''),
+                        'slug': getattr(img.subcategory, 'slug', ''),      # present if you add slug later
                     }
 
                 image_data.append({
                     'src': img.image.image_file.url if img.image and img.image.image_file else '',
                     'title': img.title,
-                    'category': category_obj,
+                    'subcategory': subcategory_obj,
                 })
 
             return Response({
@@ -76,7 +74,7 @@ class FirstCarouselAPIView(APIView):
             description = data.get('description', '')
             raw_images = data.get('images', [])
 
-            # Reset the single-instance nature
+            # Single-instance reset (unchanged)
             FirstCarousel.objects.all().delete()
 
             carousel = FirstCarousel.objects.create(
@@ -91,14 +89,13 @@ class FirstCarouselAPIView(APIView):
                 img_src = img_data.get('src')
                 img_title = img_data.get('title') or f'Product {i + 1}'
 
-                # 🔑 Category PK is CharField; use pk or category_id
-                category_key = img_data.get('category_id')
-                category = None
-                if category_key:
-                    # Using pk is robust even if PK field name changes
-                    category = Category.objects.filter(pk=category_key).first()
+                # Prefer subcategory_id; accept legacy category_id if client hasn't updated yet
+                subcategory_key = img_data.get('subcategory_id') or img_data.get('category_id')
+                subcategory = None
+                if subcategory_key:
+                    subcategory = SubCategory.objects.filter(pk=subcategory_key).first()
 
-                # Reuse existing /uploads/ logic
+                # Reuse existing /uploads/ optimization
                 if isinstance(img_src, str) and img_src.startswith('/uploads/'):
                     existing_image = Image.objects.filter(
                         image_file=img_src.replace('/uploads/', 'uploads/')
@@ -108,7 +105,7 @@ class FirstCarouselAPIView(APIView):
                             carousel=carousel,
                             image=existing_image,
                             title=img_title,
-                            category=category,
+                            subcategory=subcategory,
                             order=i
                         )
                     continue
@@ -126,7 +123,7 @@ class FirstCarouselAPIView(APIView):
                         carousel=carousel,
                         image=saved_image,
                         title=img_title,
-                        category=category,
+                        subcategory=subcategory,
                         order=i
                     )
 
@@ -135,7 +132,8 @@ class FirstCarouselAPIView(APIView):
         except Exception as e:
             print("❌ POST Error:", traceback.format_exc())
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
+
 class SecondCarouselAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -149,29 +147,27 @@ class SecondCarouselAPIView(APIView):
                     'images': []
                 }, status=status.HTTP_200_OK)
 
-            # Keep consistent ordering
             images = (
                 carousel.images
                 .order_by("order")
-                .select_related("image", "category")
+                .select_related("image", "subcategory")
                 .all()
             )
 
             image_data = []
             for img in images:
-                category_obj = None
-                if img.category:
-                    # NOTE: Category PK is CharField (category_id). Use .pk for portability.
-                    category_obj = {
-                        'id': img.category.pk,
-                        'name': getattr(img.category, 'name', ''),
-                        'slug': getattr(img.category, 'slug', ''),
+                subcategory_obj = None
+                if img.subcategory:
+                    subcategory_obj = {
+                        'id': img.subcategory.pk,
+                        'name': getattr(img.subcategory, 'name', ''),
+                        'slug': getattr(img.subcategory, 'slug', ''),
                     }
 
                 image_data.append({
                     'src': img.image.image_file.url if img.image and img.image.image_file else '',
                     'title': img.title,
-                    'category': category_obj,
+                    'subcategory': subcategory_obj,
                 })
 
             return Response({
@@ -192,7 +188,7 @@ class SecondCarouselAPIView(APIView):
             description = data.get('description', '')
             raw_images = data.get('images', [])
 
-            # Reset the single-instance nature
+            # Single-instance reset (unchanged)
             SecondCarousel.objects.all().delete()
 
             carousel = SecondCarousel.objects.create(
@@ -207,14 +203,13 @@ class SecondCarouselAPIView(APIView):
                 img_src = img_data.get('src')
                 img_title = img_data.get('title') or f'Product {i + 1}'
 
-                # 🔑 Category PK is CharField; use pk or category_id
-                category_key = img_data.get('category_id')
-                category = None
-                if category_key:
-                    # Using pk is robust even if PK field name changes
-                    category = Category.objects.filter(pk=category_key).first()
+                # Prefer subcategory_id; accept legacy category_id
+                subcategory_key = img_data.get('subcategory_id') or img_data.get('category_id')
+                subcategory = None
+                if subcategory_key:
+                    subcategory = SubCategory.objects.filter(pk=subcategory_key).first()
 
-                # Reuse existing /uploads/ logic
+                # Reuse existing /uploads/ optimization
                 if isinstance(img_src, str) and img_src.startswith('/uploads/'):
                     existing_image = Image.objects.filter(
                         image_file=img_src.replace('/uploads/', 'uploads/')
@@ -224,7 +219,7 @@ class SecondCarouselAPIView(APIView):
                             carousel=carousel,
                             image=existing_image,
                             title=img_title,
-                            category=category,
+                            subcategory=subcategory,
                             order=i
                         )
                     continue
@@ -242,7 +237,7 @@ class SecondCarouselAPIView(APIView):
                         carousel=carousel,
                         image=saved_image,
                         title=img_title,
-                        category=category,
+                        subcategory=subcategory,
                         order=i
                     )
 
