@@ -5,7 +5,7 @@ import logging
 import traceback
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
-
+from django.db import DatabaseError
 # Django
 from django.http import Http404
 from django.utils import timezone
@@ -149,14 +149,14 @@ def save_product_seo(data, product):
     seo.canonical_url = data.get('canonical_url', '')
     seo.json_ld = data.get('json_ld', '')
 
-    # ✅ NEW FIELDS preserved
+    # ✅ preserved
     seo.custom_tags = clean_comma_array(data.get('customTags', ''))
     seo.grouped_filters = clean_comma_array(data.get('groupedFilters', ''))
 
     try:
         desired_slug = slugify(product.title) or product.product_id.lower()
-        # ✅ instance must be SEO
-        seo.slug = generate_unique_slug(desired_slug, instance=seo)
+        # 🔧 pass the Product (not the SEO) so exclude(product=...) is valid
+        seo.slug = generate_unique_slug(desired_slug, instance=product)
     except Exception:
         logger.exception("Slug generation failed")
         seo.slug = slugify(product.title) or product.product_id.lower()
@@ -329,28 +329,51 @@ def save_product_attributes(data, product):
 # -----------------------
 # API Views
 # -----------------------
+
 class SaveProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
-    @transaction.atomic
     def post(self, request):
         data = _parse_payload(request)
-        try:
-            product = save_product_basic(data)
-            save_product_seo(data, product)
-            save_shipping_info(data, product)
-            save_product_variants(data, product)
-            save_product_subcategories(data, product)
-            save_product_images(data, product)
-            save_product_attributes(data, product)
-            return Response({'success': True, 'product_id': product.product_id}, status=status.HTTP_200_OK)
-        except IntegrityError as e:
-            logger.exception("SaveProduct IntegrityError (transaction rolled back)")
-            return Response({'error': 'Integrity error while saving product', 'detail': str(e)}, status=500)
-        except Exception as e:
-            logger.exception("SaveProduct failed")
-            return Response({'error': str(e)}, status=500)
 
+        try:
+            # Ensure any DB error aborts work and rolls back before we return
+            with transaction.atomic():
+                product = save_product_basic(data)
+                save_product_seo(data, product)
+                save_shipping_info(data, product)
+                save_product_variants(data, product)
+                save_product_subcategories(data, product)
+                save_product_images(data, product)        # now re-raises DB errors
+                save_product_attributes(data, product)
+
+            # If we got here, the atomic block committed successfully
+            return Response(
+                {"success": True, "product_id": product.product_id},
+                status=status.HTTP_200_OK
+            )
+
+        except IntegrityError as e:
+            # Constraint / unique / FK issues → client or data problem
+            logger.exception("SaveProduct IntegrityError (rolled back)")
+            return Response(
+                {"error": "Integrity error while saving product", "detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        except DatabaseError as e:
+            # Any other DB error
+            logger.exception("SaveProduct DatabaseError (rolled back)")
+            return Response(
+                {"error": "Database error while saving product", "detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        except Exception as e:
+            # Non-DB errors (parsing, serialization, etc.)
+            logger.exception("SaveProduct failed")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
 class DeleteProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 

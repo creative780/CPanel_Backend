@@ -5,7 +5,7 @@ import json
 import uuid
 import base64
 from io import BytesIO
-
+import logging
 # Third-party
 from PIL import Image as PILImage
 
@@ -22,7 +22,8 @@ from rest_framework.views import APIView
 # Local Imports
 from .models import *  # Consider specifying models instead of wildcard import
 from .permissions import FrontendOnlyPermission
-
+from django.core.files.base import ContentFile
+from django.db import DatabaseError, IntegrityError
 
 def format_datetime(dt):
     return dt.strftime('%d-%B-%Y-%I:%M%p')
@@ -154,12 +155,13 @@ def generate_admin_id(name: str, role_name: str, attempt=1) -> str:
 
     return f"{base_id}-{i:03d}"
 
-# Safe image saver (unchanged)
+
+logger = logging.getLogger(__name__)
 def save_image(file_or_base64, alt_text="Alt-text", tags="", linked_table="", linked_page="", linked_id=""):
     try:
         if isinstance(file_or_base64, str) and file_or_base64.startswith("data:image/"):
             header, encoded = file_or_base64.split(",", 1)
-            file_ext = header.split('/')[1].split(';')[0]
+            file_ext = header.split("/")[1].split(";")[0]
             image_data = base64.b64decode(encoded)
             image = PILImage.open(BytesIO(image_data))
             width, height = image.size
@@ -169,11 +171,11 @@ def save_image(file_or_base64, alt_text="Alt-text", tags="", linked_table="", li
         else:
             image = PILImage.open(file_or_base64)
             width, height = image.size
-            filename = file_or_base64.name
+            filename = getattr(file_or_base64, "name", f"{uuid.uuid4()}.png")
             content_file = file_or_base64
             image_type = os.path.splitext(filename)[-1].lower()
 
-        parsed_tags = [tag.strip() for tag in tags.split(',')] if tags else []
+        parsed_tags = [tag.strip() for tag in tags.split(",")] if tags else []
 
         new_image = Image(
             image_id=f"IMG-{uuid.uuid4().hex[:8]}",
@@ -185,18 +187,20 @@ def save_image(file_or_base64, alt_text="Alt-text", tags="", linked_table="", li
             linked_table=linked_table,
             linked_page=linked_page,
             linked_id=linked_id,
-            created_at=timezone.now()
+            created_at=timezone.now(),
         )
-        new_image.image_file.save(filename, content_file)
-        new_image.save()
-
+        new_image.image_file.save(filename, content_file)  # can hit storage/db
+        new_image.save()                                   # can raise DB errors
         return new_image
 
+    except (IntegrityError, DatabaseError):
+        # Critical: propagate DB/constraint/storage-backed DB failures to abort the atomic tx
+        raise
     except Exception as e:
-        print("Image save error:", str(e))
+        # Non-DB hiccups are loggable without breaking the whole request
+        logger.exception("Image save error (non-DB): %s", e)
         return None
-
-
+    
 class GenerateProductIdAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 

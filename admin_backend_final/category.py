@@ -326,7 +326,6 @@ class SaveSubCategoryAPIView(APIView):
             'description': description
         }, status=status.HTTP_201_CREATED)
 
-
 class ShowSubCategoryAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -334,8 +333,9 @@ class ShowSubCategoryAPIView(APIView):
         subcategories = SubCategory.objects.all().order_by("order")
         result = []
         for sub in subcategories:
-            category_maps = CategorySubCategoryMap.objects.filter(subcategory=sub).select_related('category')
-            category_names = [m.category.name for m in category_maps]
+            maps = CategorySubCategoryMap.objects.filter(subcategory=sub).select_related('category')
+            category_names = [m.category.name for m in maps]
+            category_ids = [m.category.category_id for m in maps]  # NEW
             product_count = ProductSubCategoryMap.objects.filter(subcategory=sub).count()
 
             img_rel = sub.images.select_related('image').first()
@@ -347,6 +347,7 @@ class ShowSubCategoryAPIView(APIView):
                 "image": img.url if img else None,
                 "imageAlt": img.alt_text if img else "",
                 "categories": category_names or None,
+                "category_ids": category_ids,  # NEW
                 "products": product_count or 0,
                 "status": sub.status,
                 "caption": sub.caption,
@@ -378,10 +379,56 @@ class EditSubCategoryAPIView(APIView):
         if 'description' in data:
             subcategory.description = (data.get('description') or '').strip() or None
 
+        # -------- Category mappings (THIS WAS MISSING) --------
+        # Frontend sends multiple category_ids fields
+        incoming_category_ids = data.getlist('category_ids')
+        if incoming_category_ids:
+            # Normalize & validate targets
+            new_cat_ids = set([cid.strip() for cid in incoming_category_ids if cid and cid.strip()])
+            if not new_cat_ids:
+                return Response({'error': 'At least one category is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+            categories_qs = Category.objects.filter(category_id__in=new_cat_ids)
+            if categories_qs.count() != len(new_cat_ids):
+                return Response({'error': 'One or more category IDs not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Prevent duplicate name in same category (excluding self)
+            effective_name = new_name or subcategory.name
+            dup_exists = CategorySubCategoryMap.objects.filter(
+                category__in=categories_qs,
+                subcategory__name__iexact=effective_name
+            ).exclude(subcategory=subcategory).exists()
+            if dup_exists:
+                return Response(
+                    {'error': f"Subcategory '{effective_name}' already exists in one or more selected categories."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Reconcile mappings
+            existing_maps = CategorySubCategoryMap.objects.filter(subcategory=subcategory)
+            existing_ids = set(existing_maps.values_list('category__category_id', flat=True))
+
+            to_add = new_cat_ids - existing_ids
+            to_remove = existing_ids - new_cat_ids
+
+            if to_remove:
+                CategorySubCategoryMap.objects.filter(
+                    subcategory=subcategory,
+                    category__category_id__in=to_remove
+                ).delete()
+
+            if to_add:
+                cats_to_add = {c.category_id: c for c in categories_qs if c.category_id in to_add}
+                CategorySubCategoryMap.objects.bulk_create([
+                    CategorySubCategoryMap(category=cats_to_add[cid], subcategory=subcategory)
+                    for cid in to_add
+                ])
+
+        # Persist basic fields
         subcategory.updated_at = timezone.now()
         subcategory.save(update_fields=['name','caption','description','updated_at'])
 
-        # -------- Image handling --------
+        # -------- Image handling (unchanged) --------
         alt_text = (
             data.get('alt_text') or
             data.get('imageAlt') or
@@ -392,7 +439,6 @@ class EditSubCategoryAPIView(APIView):
         image_data = request.FILES.get('image') or request.POST.get('image')
 
         if image_data:
-            # HARD REPLACE: remove old bindings & delete orphaned images/files
             old_rels = SubCategoryImage.objects.filter(subcategory=subcategory).select_related('image')
             old_images = [rel.image for rel in old_rels if rel.image_id]
             SubCategoryImage.objects.filter(subcategory=subcategory).delete()
@@ -403,7 +449,6 @@ class EditSubCategoryAPIView(APIView):
                         img.image_file.delete(save=False)
                     img.delete()
 
-            # Save new image and bind
             image = save_image(
                 image_data,
                 alt_text or "Alt-text",
@@ -415,7 +460,6 @@ class EditSubCategoryAPIView(APIView):
             if image:
                 SubCategoryImage.objects.create(subcategory=subcategory, image=image)
         else:
-            # No new image => alt_text update on existing FIRST image
             if alt_text:
                 rel = subcategory.images.select_related('image').first()
                 if rel and rel.image:
@@ -423,6 +467,7 @@ class EditSubCategoryAPIView(APIView):
                     rel.image.save(update_fields=['alt_text'])
 
         return Response({'success': True, 'message': 'SubCategory updated'}, status=status.HTTP_200_OK)
+
 
 class DeleteSubCategoryAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
