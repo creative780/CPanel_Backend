@@ -1,15 +1,12 @@
 # Standard Library
-import json
 import uuid
 import logging
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from collections import defaultdict
 from django.db import DatabaseError
 # Django
 from django.http import Http404
-from django.utils import timezone
 from django.shortcuts import get_object_or_404
-from django.utils.text import slugify
 from django.db import transaction, IntegrityError
 from django.db.models import Prefetch
 
@@ -20,13 +17,16 @@ from rest_framework.views import APIView
 
 # Utilities / Local
 from .utilities import (
+    _as_list,
+    _now,
+    _parse_payload,
+    _to_decimal,
     format_image_object,
     generate_product_id,
     generate_unique_seo_id,
-    generate_unique_slug,
     save_image,
 )
-from .models import *  # keeping wildcard to avoid interface changes
+from .models import *
 from .permissions import FrontendOnlyPermission
 
 logger = logging.getLogger(__name__)
@@ -34,34 +34,7 @@ logger = logging.getLogger(__name__)
 # -----------------------
 # Helpers
 # -----------------------
-def _parse_payload(request):
-    """Consistent, tolerant request payload parsing."""
-    if isinstance(request.data, dict):
-        return request.data
-    try:
-        body = request.body.decode("utf-8") if request.body else "{}"
-        return json.loads(body or "{}")
-    except Exception:
-        return {}
 
-def _now():
-    return timezone.now()
-
-def _to_decimal(val, default="0"):
-    try:
-        return Decimal(str(val))
-    except (InvalidOperation, TypeError, ValueError):
-        return Decimal(default)
-
-def _as_list(val):
-    """Coerce incoming field to list[str] safely."""
-    if val is None:
-        return []
-    if isinstance(val, list):
-        return [str(x) for x in val if str(x).strip()]
-    if isinstance(val, str):
-        return [v.strip() for v in val.split(",") if v.strip()]
-    return []
 
 # -----------------------
 # Save/Update Functions
@@ -85,7 +58,6 @@ def save_product_basic(data, is_edit=False, existing_product=None):
     stock_status = data.get('stock_status') or ('In Stock' if quantity > 0 else 'Out Of Stock')
     subcategory_ids = data.get('subcategory_ids', ['DW-DEFAULTSUB-001'])
 
-    # --- rating inputs (optional) ---
     def _coerce_rating(val, fallback):
         try:
             v = float(val)
@@ -166,7 +138,6 @@ def save_product_seo(data, product):
         defaults={
             "seo_id": unique_seo_id,
             "meta_keywords": [],
-            "slug": slugify(product.title) or product.product_id.lower(),
             "created_at": now,
             "updated_at": now,
         }
@@ -189,13 +160,6 @@ def save_product_seo(data, product):
     # Preserved custom fields
     seo.custom_tags = clean_comma_array(data.get('customTags', ''))
     seo.grouped_filters = clean_comma_array(data.get('groupedFilters', ''))
-
-    try:
-        desired_slug = slugify(product.title) or product.product_id.lower()
-        seo.slug = generate_unique_slug(desired_slug, instance=product)
-    except Exception:
-        logger.exception("Slug generation failed")
-        seo.slug = slugify(product.title) or product.product_id.lower()
 
     seo.updated_at = now
     seo.save()
@@ -756,7 +720,6 @@ class ShowProductSEOAPIView(APIView):
                 "open_graph_image_url": seo.open_graph_image_url,
                 "canonical_url": seo.canonical_url,
                 "json_ld": seo.json_ld,
-                "slug": seo.slug,
                 "custom_tags": seo.custom_tags,
                 "grouped_filters": seo.grouped_filters
             }

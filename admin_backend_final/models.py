@@ -129,7 +129,7 @@ class CategorySubCategoryMap(models.Model):
 # === PRODUCT SYSTEM ===
 class Product(models.Model):
     product_id = models.CharField(primary_key=True, max_length=100)
-    title = models.CharField(max_length=255, db_index=True)
+    title = models.CharField(max_length=511, db_index=True)
     description = models.TextField()
     brand = models.CharField(max_length=255, blank=True, default="")
     price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -215,7 +215,6 @@ class ProductSEO(models.Model):
     open_graph_image_url = models.URLField(blank=True, default="")
     canonical_url = models.URLField(blank=True, default="")
     json_ld = models.TextField(blank=True, default="")
-    slug = models.SlugField(unique=True, db_index=True)
     custom_tags = models.JSONField(null=False, blank=True, default=list)
     grouped_filters = models.JSONField(null=False, blank=True, default=list)
     created_at = models.DateTimeField(auto_now_add=True)
