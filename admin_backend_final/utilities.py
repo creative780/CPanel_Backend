@@ -1,4 +1,5 @@
 # Standard Library
+from decimal import InvalidOperation
 import os
 import re
 import json
@@ -73,7 +74,9 @@ def generate_product_id(name, subcat_id):
     else:
         subcat_prefix = fallback_subcat_prefix
 
-    first_letters = ''.join(word[0].upper() for word in re.findall(r'\b\w', name))
+    # Get the first letters of the first two words only
+    words = re.findall(r'\b\w+', name)
+    first_letters = ''.join(word[0].upper() for word in words[:2])
 
     base = f"{subcat_prefix}-{first_letters}"
 
@@ -95,6 +98,7 @@ def generate_product_id(name, subcat_id):
     num_str = f"{next_num:03d}"
 
     return f"{base}-{num_str}"
+
 
 def generate_inventory_id(product_id):
     return f"INV-{product_id}"
@@ -303,3 +307,32 @@ def format_image_object(image_obj, request=None):
         "alt_text": getattr(img, "alt_text", "") or "Image"
     }
   
+  
+def _parse_payload(request):
+    """Consistent, tolerant request payload parsing."""
+    if isinstance(request.data, dict):
+        return request.data
+    try:
+        body = request.body.decode("utf-8") if request.body else "{}"
+        return json.loads(body or "{}")
+    except Exception:
+        return {}
+
+def _now():
+    return timezone.now()
+
+def _to_decimal(val, default="0"):
+    try:
+        return Decimal(str(val))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal(default)
+
+def _as_list(val):
+    """Coerce incoming field to list[str] safely."""
+    if val is None:
+        return []
+    if isinstance(val, list):
+        return [str(x) for x in val if str(x).strip()]
+    if isinstance(val, str):
+        return [v.strip() for v in val.split(",") if v.strip()]
+    return []
