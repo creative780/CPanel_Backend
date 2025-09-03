@@ -1,14 +1,15 @@
 
 # Standard Library
 import json
+import re
 import traceback
 
 # Django
 from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.text import slugify
-from django.contrib.auth.hashers import make_password
-from django.db import IntegrityError
+from django.contrib.auth.hashers import make_password, check_password
+from django.db import IntegrityError, transaction
 
 # Django REST Framework
 from rest_framework import status
@@ -94,51 +95,176 @@ class ShowNavItemsAPIView(APIView):
 
         return Response(data, status=status.HTTP_200_OK)
 
+EMIRATES_ID_RE = re.compile(r"^784-\d{4}-\d{7}-\d$")
+
+def _clean_str(v, default=""):
+    return (v or default).strip()
+
 class SaveUserAPIView(APIView):
+    """
+    Idempotent create/upsert WITHOUT password.
+    Frontend should call this on first load/sign-in to ensure row exists.
+    """
     permission_classes = [FrontendOnlyPermission]
 
     def post(self, request):
         try:
-            data = json.loads(request.body)
+            data = json.loads(request.body or "{}")
 
-            user_id = data.get('user_id')
-            email = data.get('email')
-            password = data.get('password', '')
-            name = data.get('name', '')
-            created_at = timezone.now()
+            user_id = _clean_str(data.get("user_id"))
+            email = _clean_str(data.get("email")).lower()
+            name = _clean_str(data.get("name"))
+            username = _clean_str(data.get("username") or email or user_id)
+
+            is_verified = bool(data.get("is_verified", False))
+            emirates_id = _clean_str(data.get("emirates_id") or None, default=None)
+            phone_number = _clean_str(data.get("phone_number"))
+            address = _clean_str(data.get("address"))
 
             if not user_id or not email:
-                return Response({'error': 'Missing user_id or email'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": "Missing user_id or email"}, status=status.HTTP_400_BAD_REQUEST)
 
-            user, created = User.objects.get_or_create(
-                user_id=user_id,
-                defaults={
-                    'username': email,
-                    'email': email,
-                    'password_hash': make_password(password) if password else '',
-                    'first_name': name or '',
-                    'created_at': created_at,
-                }
-            )
+            # Validate optional Emirates ID format (if provided)
+            if emirates_id and not EMIRATES_ID_RE.match(emirates_id):
+                return Response({"error": "Invalid Emirates ID format. Use 784-YYYY-NNNNNNN-C"}, status=400)
 
-            if not created:
-                user.updated_at = timezone.now()
-                user.save()
+            with transaction.atomic():
+                user, created = User.objects.get_or_create(
+                    user_id=user_id,
+                    defaults={
+                        "username": username,
+                        "email": email,
+                        "first_name": name,
+                        "is_verified": is_verified,
+                        "emirates_id": emirates_id,
+                        "phone_number": phone_number,
+                        "address": address,
+                        # NOTE: password_hash intentionally ignored (Firebase only)
+                    },
+                )
 
-            return Response({'message': 'User saved successfully'}, status=status.HTTP_201_CREATED)
+                if not created:
+                    # Minimal safe upsert: do not overwrite with blanks unless explicitly provided
+                    user.username = username or user.username
+                    user.email = email or user.email
+                    if data.get("name") is not None:
+                        user.first_name = name
+                    if "is_verified" in data:
+                        user.is_verified = is_verified
+                    if "emirates_id" in data:
+                        user.emirates_id = emirates_id
+                    if "phone_number" in data:
+                        user.phone_number = phone_number
+                    if "address" in data:
+                        user.address = address
+                    user.updated_at = timezone.now()
+                    user.save()
+
+            return Response({"message": "User saved successfully", "created": created}, status=status.HTTP_201_CREATED)
+
+        except IntegrityError as e:
+            return Response({"error": "Integrity error", "detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# show_user -> APIView (GET)
+
 class ShowUserAPIView(APIView):
+    """
+    GET a flat list of users with the new fields.
+    """
     permission_classes = [FrontendOnlyPermission]
 
     def get(self, request):
-        users = User.objects.all().values('user_id', 'email', 'first_name', 'created_at', 'updated_at')
-        return Response({'users': list(users)}, status=status.HTTP_200_OK)
+        users = User.objects.all().values(
+            "user_id",
+            "username",
+            "email",
+            "first_name",
+            "is_verified",
+            "emirates_id",
+            "phone_number",
+            "address",
+            "created_at",
+            "updated_at",
+        )
+        return Response({"users": list(users)}, status=status.HTTP_200_OK)
 
 
-       
+class EditUserAPIView(APIView):
+    """
+    Partial update WITHOUT password.
+    Security is enforced by FrontendOnlyPermission (header gate) and the client’s Firebase session.
+    """
+    permission_classes = [FrontendOnlyPermission]
+
+    def patch(self, request):
+        try:
+            data = json.loads(request.body or "{}")
+            user_id = _clean_str(data.get("user_id"))
+
+            if not user_id:
+                return Response({"error": "user_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                user = User.objects.get(user_id=user_id)
+            except User.DoesNotExist:
+                return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+            updates = {}
+
+            # Supported fields (no password here)
+            if "email" in data and _clean_str(data["email"]):
+                user.email = _clean_str(data["email"]).lower()
+                updates["email"] = True
+
+            # Either 'username' or fallback legacy 'UserName'
+            new_username = data.get("username") or data.get("UserName")
+            if new_username:
+                user.username = _clean_str(new_username)
+                updates["username"] = True
+
+            if "name" in data:
+                user.first_name = _clean_str(data.get("name"))
+                updates["first_name"] = True
+
+            if "is_verified" in data:
+                user.is_verified = bool(data.get("is_verified"))
+                updates["is_verified"] = True
+
+            if "emirates_id" in data:
+                eid = data.get("emirates_id")
+                if eid:
+                    eid = _clean_str(eid)
+                    if not EMIRATES_ID_RE.match(eid):
+                        return Response({"error": "Invalid Emirates ID format. Use 784-YYYY-NNNNNNN-C"}, status=400)
+                    user.emirates_id = eid
+                else:
+                    user.emirates_id = None
+                updates["emirates_id"] = True
+
+            if "phone_number" in data:
+                user.phone_number = _clean_str(data.get("phone_number"))
+                updates["phone_number"] = True
+
+            if "address" in data:
+                user.address = _clean_str(data.get("address"))
+                updates["address"] = True
+
+            user.updated_at = timezone.now()
+
+            try:
+                user.save()
+            except IntegrityError as e:
+                return Response({"error": "Integrity error", "detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response(
+                {"message": "User updated successfully", "updated_fields": list(updates.keys())},
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
 class ShowAdminAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 

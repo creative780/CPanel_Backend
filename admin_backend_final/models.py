@@ -4,17 +4,21 @@ from django.conf import settings  # for AUTH_USER_MODEL-safe FKs
 from decimal import Decimal
 from django.core.validators import MinValueValidator, MaxValueValidator
 
-# === USER AND ADMIN ===
 class User(AbstractUser):
     user_id = models.CharField(primary_key=True, max_length=100)
     email = models.EmailField(unique=True, db_index=True)
-    password_hash = models.CharField(max_length=255)
+    password_hash = models.CharField(max_length=255, blank=True, null=True)
+    is_verified = models.BooleanField(default=False)  # email verified flag from Firebase
+    username = models.CharField(max_length=150, unique=True, blank=False)
+    emirates_id = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    phone_number = models.CharField(max_length=20, blank=True, default="")
+    address = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.username or self.email or self.user_id
-
+    
 class Admin(models.Model):
     admin_id = models.CharField(primary_key=True, max_length=100)
     admin_name = models.CharField(max_length=100, db_index=True)
@@ -274,6 +278,7 @@ class Attribute(models.Model):
     
 class Orders(models.Model):
     order_id = models.CharField(primary_key=True, max_length=100)
+    device_uuid = models.CharField(max_length=100, null=True, blank=True, db_index=True)
     user_name = models.CharField(max_length=255, blank=True)
     order_date = models.DateTimeField()
     status = models.CharField(max_length=50, choices=[

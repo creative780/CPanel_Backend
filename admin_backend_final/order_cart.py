@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Q, Prefetch
 
 # Django REST Framework
 from rest_framework import status
@@ -229,7 +230,6 @@ class ShowCartAPIView(APIView):
                 device_uuid = None
         return self._respond(request, device_uuid)
 
-  
 # delete_cart_item -> APIView (POST)
 class DeleteCartItemAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -265,10 +265,19 @@ class DeleteCartItemAPIView(APIView):
         
 class SaveOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
+
     @transaction.atomic
     def post(self, request):
         try:
             data = json.loads(request.body or "{}")
+
+            # Pull device UUID from header or payload (mirrors cart usage)
+            device_uuid = (
+                request.headers.get("X-Device-UUID")
+                or data.get("device_uuid")
+                or ""
+            )
+            device_uuid = device_uuid.strip() or None  # normalize to None if empty
 
             user_name = data.get("user_name", "Guest")
             delivery_data = data.get("delivery") or {}
@@ -277,6 +286,7 @@ class SaveOrderAPIView(APIView):
             order_id = generate_custom_order_id(user_name, email or "")
             order = Orders.objects.create(
                 order_id=order_id,
+                device_uuid=device_uuid,  # ← NEW
                 user_name=user_name,
                 order_date=timezone.now(),
                 status=data.get("status", "pending"),
@@ -313,7 +323,6 @@ class SaveOrderAPIView(APIView):
                 selected_attributes_human = item.get("selected_attributes_human") or []
                 variant_signature = item.get("variant_signature") or ""
 
-                # store as strings to keep JSON clean/consistent
                 price_breakdown = {
                     "base_price": str(base_price),
                     "attributes_delta": str(attrs_delta),
@@ -366,6 +375,7 @@ class SaveOrderAPIView(APIView):
         except Exception as e:
             print(traceback.format_exc())
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class ShowOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -449,7 +459,7 @@ class ShowOrderAPIView(APIView):
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        
 class EditOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -464,85 +474,264 @@ class EditOrderAPIView(APIView):
 
             order = get_object_or_404(Orders, order_id=order_id)
 
-            # Header
+            # ----- Header fields -----
             order.user_name = data.get("user_name", order.user_name)
-            order.status = data.get("status", order.status)
+            incoming_status = data.get("status")
+            if incoming_status is not None:
+                order.status = incoming_status
             if data.get("total_price") is not None:
                 order.total_price = Decimal(str(data["total_price"]))
             order.notes = data.get("notes", order.notes)
             order.save()
 
-            # Rebuild items
-            OrderItem.objects.filter(order=order).delete()
+            # ----- Items (only rebuild if 'items' key is present) -----
+            items_payload = data.get("items", None)
+            if items_payload is not None:
+                # Client provided items → treat as source of truth
+                OrderItem.objects.filter(order=order).delete()
 
-            for item in data.get("items", []):
-                product = get_object_or_404(Product, product_id=item["product_id"])
+                for item in items_payload:
+                    product = get_object_or_404(Product, product_id=item["product_id"])
 
-                qty = int(item.get("quantity", 1))
-                unit_price = Decimal(str(item.get("unit_price", "0")))
-                total_price = Decimal(str(item.get("total_price", "0")))
-                attrs_delta = Decimal(str(item.get("attributes_price_delta", 0)))
+                    qty = int(item.get("quantity", 1))
+                    unit_price = Decimal(str(item.get("unit_price", "0")))
+                    total_price = Decimal(str(item.get("total_price", "0")))
+                    attrs_delta = Decimal(str(item.get("attributes_price_delta", 0)))
 
-                if item.get("base_price") is not None:
-                    base_price = Decimal(str(item["base_price"]))
-                else:
-                    base_price = unit_price - attrs_delta
-                    if base_price < 0:
-                        base_price = Decimal("0")
+                    if item.get("base_price") is not None:
+                        base_price = Decimal(str(item["base_price"]))
+                    else:
+                        base_price = unit_price - attrs_delta
+                        if base_price < 0:
+                            base_price = Decimal("0")
 
-                selected_size = (item.get("selected_size") or "").strip()
-                selected_attributes = item.get("selected_attributes") or {}
-                selected_attributes_human = item.get("selected_attributes_human") or []
-                variant_signature = item.get("variant_signature") or ""
+                    selected_size = (item.get("selected_size") or "").strip()
+                    selected_attributes = item.get("selected_attributes") or {}
+                    selected_attributes_human = item.get("selected_attributes_human") or []
+                    variant_signature = item.get("variant_signature") or ""
 
-                price_breakdown = {
-                    "base_price": str(base_price),
-                    "attributes_delta": str(attrs_delta),
-                    "unit_price": str(unit_price),
-                    "line_total": str(total_price),
-                    "selected_size": selected_size,
-                    "selected_attributes_human": selected_attributes_human,
-                }
+                    price_breakdown = {
+                        "base_price": str(base_price),
+                        "attributes_delta": str(attrs_delta),
+                        "unit_price": str(unit_price),
+                        "line_total": str(total_price),
+                        "selected_size": selected_size,
+                        "selected_attributes_human": selected_attributes_human,
+                    }
 
-                OrderItem.objects.create(
-                    item_id=str(uuid.uuid4()),
-                    order=order,
-                    product=product,
-                    quantity=qty,
-                    unit_price=unit_price,
-                    total_price=total_price,
-                    selected_size=selected_size,
-                    selected_attributes=selected_attributes,
-                    selected_attributes_human=selected_attributes_human,
-                    variant_signature=variant_signature,
-                    attributes_price_delta=attrs_delta,
-                    price_breakdown=price_breakdown,
-                )
+                    OrderItem.objects.create(
+                        item_id=str(uuid.uuid4()),
+                        order=order,
+                        product=product,
+                        quantity=qty,
+                        unit_price=unit_price,
+                        total_price=total_price,
+                        selected_size=selected_size,
+                        selected_attributes=selected_attributes,
+                        selected_attributes_human=selected_attributes_human,
+                        variant_signature=variant_signature,
+                        attributes_price_delta=attrs_delta,
+                        price_breakdown=price_breakdown,
+                    )
 
-            # Delivery upsert
+            # ----- Delivery upsert (safe create with delivery_id) -----
             delivery_data = data.get("delivery")
-            if delivery_data:
-                delivery_obj, _ = OrderDelivery.objects.get_or_create(order=order)
+            if delivery_data is not None:
+                # Try to fetch existing record first
+                delivery_obj = OrderDelivery.objects.filter(order=order).first()
 
-                raw_instructions = delivery_data.get("instructions", [])
-                if isinstance(raw_instructions, str):
-                    instructions = [raw_instructions] if raw_instructions.strip() else []
-                elif isinstance(raw_instructions, list):
-                    instructions = raw_instructions
+                if delivery_obj is None:
+                    # Create only if we have minimum required fields
+                    required = ["name", "phone", "street_address", "city", "zip_code"]
+                    if all(delivery_data.get(k) for k in required):
+                        raw_instructions = delivery_data.get("instructions", [])
+                        if isinstance(raw_instructions, str):
+                            instructions = [raw_instructions] if raw_instructions.strip() else []
+                        elif isinstance(raw_instructions, list):
+                            instructions = raw_instructions
+                        else:
+                            instructions = []
+
+                        delivery_obj = OrderDelivery.objects.create(
+                            delivery_id=str(uuid.uuid4()),
+                            order=order,
+                            name=delivery_data.get("name"),
+                            email=delivery_data.get("email"),
+                            phone=delivery_data.get("phone"),
+                            street_address=delivery_data.get("street_address"),
+                            city=delivery_data.get("city"),
+                            zip_code=delivery_data.get("zip_code"),
+                            instructions=instructions,
+                        )
+                    # If not enough fields to create, silently skip creation.
                 else:
-                    instructions = []
+                    raw_instructions = delivery_data.get("instructions", delivery_obj.instructions or [])
+                    if isinstance(raw_instructions, str):
+                        instructions = [raw_instructions] if raw_instructions.strip() else []
+                    elif isinstance(raw_instructions, list):
+                        instructions = raw_instructions
+                    else:
+                        instructions = delivery_obj.instructions or []
 
-                delivery_obj.name = delivery_data.get("name", delivery_obj.name)
-                delivery_obj.email = delivery_data.get("email", delivery_obj.email)
-                delivery_obj.phone = delivery_data.get("phone", delivery_obj.phone)
-                delivery_obj.street_address = delivery_data.get("street_address", delivery_obj.street_address)
-                delivery_obj.city = delivery_data.get("city", delivery_obj.city)
-                delivery_obj.zip_code = delivery_data.get("zip_code", delivery_obj.zip_code)
-                delivery_obj.instructions = instructions
-                delivery_obj.save()
+                    delivery_obj.name = delivery_data.get("name", delivery_obj.name)
+                    delivery_obj.email = delivery_data.get("email", delivery_obj.email)
+                    delivery_obj.phone = delivery_data.get("phone", delivery_obj.phone)
+                    delivery_obj.street_address = delivery_data.get("street_address", delivery_obj.street_address)
+                    delivery_obj.city = delivery_data.get("city", delivery_obj.city)
+                    delivery_obj.zip_code = delivery_data.get("zip_code", delivery_obj.zip_code)
+                    delivery_obj.instructions = instructions
+                    delivery_obj.save()
 
-            return Response({"message": "Order updated successfully", "order_id": order_id}, status=status.HTTP_200_OK)
+            return Response(
+                {"message": "Order updated successfully", "order_id": order_id},
+                status=status.HTTP_200_OK,
+            )
 
         except Exception as e:
             print(traceback.format_exc())
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class ShowSpecificUserOrdersAPIView(APIView):
+    permission_classes = [FrontendOnlyPermission]
+
+    def _split_multi(self, v):
+        """
+        Accept str, list, or None and return a set of trimmed lowercase tokens.
+        """
+        if v is None:
+            return set()
+        if isinstance(v, str):
+            parts = [p.strip() for p in v.split(",")]
+        elif isinstance(v, list):
+            parts = [str(p).strip() for p in v]
+        else:
+            parts = [str(v).strip()]
+        return {p.lower() for p in parts if p}
+
+    def _build_filter(self, payload):
+        """
+        Supports filtering by:
+          - Orders.device_uuid
+          - Orders.user_name
+          - OrderDelivery.email
+          - OrderDelivery.phone
+        Any provided filter will be OR'ed together.
+        """
+        names = self._split_multi(payload.get("user_name") or payload.get("user_names"))
+        emails = self._split_multi(payload.get("email") or payload.get("emails"))
+        phones = self._split_multi(payload.get("phone") or payload.get("phones"))
+        device_ids = self._split_multi(payload.get("device_uuid") or payload.get("device_uuids"))
+
+        if not (names or emails or phones or device_ids):
+            return None
+
+        q = Q()
+        if device_ids:
+            d_q = Q()
+            for d in device_ids:
+                d_q |= Q(device_uuid__iexact=d)
+            q |= d_q
+
+        if names:
+            n_q = Q()
+            for n in names:
+                n_q |= Q(user_name__iexact=n)
+            q |= n_q
+
+        if emails:
+            e_q = Q()
+            for e in emails:
+                e_q |= Q(orderdelivery__email__iexact=e)
+            q |= e_q
+
+        if phones:
+            p_q = Q()
+            for p in phones:
+                p_q |= Q(orderdelivery__phone__iexact=p)
+            q |= p_q
+
+        return q
+
+    def _serialize(self, orders):
+        """
+        Response structure per order:
+        - order_id, date, status, total_price, product_ids, items
+        """
+        out = []
+        for o in orders:
+            items = []
+            product_ids = []
+            # Prefetched items available via cache; fallback to actual relation if needed
+            prefetched = o._prefetched_objects_cache.get("orderitem_set") if hasattr(o, "_prefetched_objects_cache") else None
+            iterable = prefetched if prefetched is not None else o.orderitem_set.select_related("product").only(
+                "product__product_id", "quantity", "unit_price", "total_price"
+            )
+
+            for it in iterable:
+                pid = it.product.product_id
+                product_ids.append(pid)
+                items.append({
+                    "product_id": pid,
+                    "quantity": it.quantity,
+                    "unit_price": str(it.unit_price),
+                    "total_price": str(it.total_price),
+                })
+
+            out.append({
+                "order_id": o.order_id,
+                "date": o.order_date.strftime('%Y-%m-%d %H:%M:%S'),
+                "status": o.status,
+                "total_price": float(o.total_price),
+                "product_ids": product_ids,
+                "items": items,
+            })
+        return {"orders": out}
+
+    def _query(self, q: Q):
+        return (
+            Orders.objects
+            .filter(q)
+            .prefetch_related(
+                Prefetch(
+                    "orderitem_set",
+                    queryset=OrderItem.objects.select_related("product").only(
+                        "product__product_id", "quantity", "unit_price", "total_price"
+                    )
+                )
+            )
+            .order_by("-created_at")
+        )
+
+    def get(self, request):
+        payload = {
+            "user_name": request.GET.get("user_name"),
+            "user_names": request.GET.get("user_names"),
+            "email": request.GET.get("email"),
+            "emails": request.GET.get("emails"),
+            "phone": request.GET.get("phone"),
+            "phones": request.GET.get("phones"),
+            "device_uuid": request.GET.get("device_uuid"),
+            "device_uuids": request.GET.get("device_uuids"),
+        }
+        q = self._build_filter(payload)
+        if q is None:
+            return Response(
+                {"error": "Provide at least one filter: device_uuid(s), user_name(s), email(s), or phone(s)."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response(self._serialize(self._query(q)), status=status.HTTP_200_OK)
+
+    def post(self, request):
+        try:
+            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+        except Exception:
+            data = {}
+        q = self._build_filter(data)
+        if q is None:
+            return Response(
+                {"error": "Provide at least one filter in body: device_uuid(s), user_name(s), email(s), or phone(s)."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response(self._serialize(self._query(q)), status=status.HTTP_200_OK)

@@ -38,7 +38,6 @@ logger = logging.getLogger(__name__)
 
 # -----------------------
 # Save/Update Functions
-
 def save_product_basic(data, is_edit=False, existing_product=None):
     now = _now()
     name = (data.get('name') or '').strip()
@@ -51,7 +50,12 @@ def save_product_basic(data, is_edit=False, existing_product=None):
     tax_rate = _to_decimal(data.get('tax_rate', 0))
     price_calculator = data.get('price_calculator', '')
     video_url = data.get('video_url', '')
+
+    # CHANGED: accept rich HTML exactly as provided (no strip / sanitize)
     description = data.get('description', '')
+    if description is None:
+        description = ''  # keep non-null
+
     status_val = data.get('status', 'active')
     quantity = int(data.get('quantity', 0) or 0)
     low_stock_alert = int(data.get('low_stock_alert', 0) or 0)
@@ -63,7 +67,6 @@ def save_product_basic(data, is_edit=False, existing_product=None):
             v = float(val)
         except (TypeError, ValueError):
             return fallback
-        # snap to nearest 0.5 and clamp 0..5
         v = max(0.0, min(5.0, round(v * 2) / 2.0))
         return v
 
@@ -91,8 +94,8 @@ def save_product_basic(data, is_edit=False, existing_product=None):
             )
 
     # Shared assignment logic
-    product.title = name
-    product.description = description
+    product.title = name                         # title from 'name' (editable client-side)
+    product.description = description            # CHANGED: store raw HTML
     product.brand = brand
     product.price = price
     product.discounted_price = discounted_price
@@ -102,7 +105,7 @@ def save_product_basic(data, is_edit=False, existing_product=None):
     product.status = status_val
     product.updated_at = now
 
-    # Apply rating only if provided; preserve existing otherwise
+    # Optional ratings
     if incoming_rating is not None:
         product.rating = _coerce_rating(incoming_rating, getattr(product, "rating", 0.0))
     if incoming_rating_count is not None:
@@ -110,7 +113,6 @@ def save_product_basic(data, is_edit=False, existing_product=None):
             rc = int(incoming_rating_count)
             product.rating_count = max(0, rc)
         except (TypeError, ValueError):
-            # ignore bad input; keep existing
             pass
 
     product.save()
@@ -363,6 +365,7 @@ class SaveProductAPIView(APIView):
         if not (data.get('name') or '').strip():
             return Response({"error": "Field 'name' is required."}, status=status.HTTP_400_BAD_REQUEST)
 
+        # NOTE: `description` is allowed to be rich HTML; do not strip/sanitize here.
         try:
             with transaction.atomic():
                 product = save_product_basic(data)
@@ -396,6 +399,7 @@ class SaveProductAPIView(APIView):
             logger.exception("SaveProduct failed")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class DeleteProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -425,6 +429,7 @@ class DeleteProductAPIView(APIView):
         except Exception as e:
             logger.exception("DeleteProduct failed")
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
 class ShowProductsAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -554,6 +559,7 @@ class ShowSpecificProductAPIView(APIView):
             "name": subcategory_map.subcategory.name if subcategory_map else None
         }
 
+        # CHANGED: expose the HTML as-is via `fit_description` (keeps frontend compatibility)
         response = {
             "id": product.product_id,
             "name": product.title,
@@ -563,12 +569,11 @@ class ShowSpecificProductAPIView(APIView):
             "tax_rate": str(product.tax_rate) if product.tax_rate is not None else None,
             "price_calculator": product.price_calculator,
             "video_url": product.video_url,
-            "fit_description": product.description,
+            "fit_description": product.description,  # raw HTML round-trips
             "stock_status": stock_status,
             "stock_quantity": stock_quantity,
             "low_stock_alert": low_stock_alert,
             "subcategory": subcategory_data,
-            # NEW
             "rating": float(getattr(product, "rating", 0.0)) if getattr(product, "rating", None) is not None else 0.0,
             "rating_count": int(getattr(product, "rating_count", 0)),
         }
@@ -888,7 +893,6 @@ class EditProductAPIView(APIView):
             ]
             has_new_images = len(incoming_images) > 0
 
-            # local rating coercer (same logic as save)
             def _coerce_rating(val, fallback):
                 try:
                     v = float(val)
@@ -909,9 +913,17 @@ class EditProductAPIView(APIView):
                 if not product:
                     continue
 
+                # Title is editable if a non-empty name is provided
                 if 'name' in data and (data.get('name') or '').strip():
                     product.title = data.get('name').strip()
-                product.description = data.get('description', product.description)
+
+                # CHANGED: only overwrite description if provided (including empty None guard);
+                # never force-empty on accidental "" from the client editor.
+                if 'description' in data:
+                    desc = data.get('description')
+                    if desc is not None and desc != '':
+                        product.description = desc  # raw HTML as-is
+
                 product.brand = data.get('brand_title', product.brand)
                 if 'price' in data:
                     product.price = _to_decimal(data.get('price', product.price))
@@ -923,7 +935,7 @@ class EditProductAPIView(APIView):
                 product.video_url = data.get('video_url', product.video_url)
                 product.status = data.get('status', product.status)
 
-                # NEW: rating fields (optional, only update if provided)
+                # Optional rating fields
                 if 'rating' in data:
                     product.rating = _coerce_rating(data.get('rating'), getattr(product, "rating", 0.0))
                 if 'rating_count' in data:
@@ -951,6 +963,7 @@ class EditProductAPIView(APIView):
                     inventory.low_stock_alert = int(data['low_stock_alert'])
                 update_stock_status(inventory)
 
+                # Delegate to existing helpers (no changes needed)
                 save_product_seo(data, product)
                 save_shipping_info(data, product)
                 save_product_variants(data, product)
@@ -973,7 +986,6 @@ class EditProductAPIView(APIView):
         except Exception as e:
             logger.exception("EditProduct failed")
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 def _delete_product_full(product):
     """Hard-delete product and all dependent rows (parity with DeleteProductAPIView)."""
