@@ -3,7 +3,7 @@
 import json
 from uuid import uuid4
 import base64, mimetypes, os
-
+from typing import Optional
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -56,7 +56,7 @@ def ensure_unique_slug(raw_slug: str, exclude_blog_id: str = None) -> str:
         i += 1
     return slug
 
-def _image_to_data_uri(img) -> str | None:
+def _image_to_data_uri(img) -> Optional[str]:
     """Try to return a data URI from Image.image_file; fallback to url."""
     if not img:
         return None
@@ -73,7 +73,7 @@ def _image_to_data_uri(img) -> str | None:
         pass
     return img.url or None
 
-def get_primary_thumbnail_url(blog: BlogPost) -> str | None:
+def get_primary_thumbnail_url(blog: BlogPost) -> Optional[str]:
     """
     Returns a data URI (base64) for the primary image if available,
     otherwise the first image. Falls back to .url if the file cannot be read.
