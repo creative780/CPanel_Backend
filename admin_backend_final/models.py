@@ -355,14 +355,6 @@ class BlogCategory(models.Model):
     name = models.CharField(max_length=100, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-class BlogCategoryMap(models.Model):
-    blog = models.ForeignKey(Blog, on_delete=models.CASCADE)
-    category = models.ForeignKey(BlogCategory, on_delete=models.CASCADE)
-
-    class Meta:
-        unique_together = ("blog", "category")
-
-
 
 class Notification(models.Model):
     notification_id = models.CharField(primary_key=True, max_length=100)
