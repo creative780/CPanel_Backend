@@ -350,11 +350,6 @@ class Blog(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-class BlogCategory(models.Model):
-    category_id = models.CharField(primary_key=True, max_length=100)
-    name = models.CharField(max_length=100, db_index=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
 
 class Notification(models.Model):
     notification_id = models.CharField(primary_key=True, max_length=100)
