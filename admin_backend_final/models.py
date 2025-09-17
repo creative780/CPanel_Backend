@@ -362,17 +362,7 @@ class BlogCategoryMap(models.Model):
     class Meta:
         unique_together = ("blog", "category")
 
-class BlogSEO(models.Model):
-    blog = models.OneToOneField(Blog, on_delete=models.CASCADE, related_name='seo')
-    meta_title = models.CharField(max_length=255, blank=True)
-    meta_description = models.TextField(blank=True)
-    og_title = models.CharField(max_length=255, blank=True)
-    og_image = models.URLField(blank=True)
-    tags = models.CharField(max_length=255, blank=True)  # Comma-separated tags
-    schema_enabled = models.BooleanField(default=False)
 
-    def __str__(self):
-        return f"SEO for {self.blog.title}"
 
 class Notification(models.Model):
     notification_id = models.CharField(primary_key=True, max_length=100)
