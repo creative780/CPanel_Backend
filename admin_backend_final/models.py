@@ -338,18 +338,6 @@ class CartItem(models.Model):
     variant_signature = models.CharField(max_length=255, blank=True, default="", db_index=True)
     attributes_price_delta = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
     
-class Blog(models.Model):
-    blog_id = models.CharField(primary_key=True, max_length=100)
-    title = models.CharField(max_length=255, db_index=True)
-    content = models.TextField()
-    blog_image = models.URLField()
-    schedule_date = models.DateTimeField()
-    status = models.CharField(max_length=20, choices=[("draft", "Draft"), ("published", "Published")], db_index=True)
-    author_id = models.CharField(max_length=100)
-    author_type = models.CharField(max_length=10, choices=[("admin", "Admin"), ("user", "User")])
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
 
 class Notification(models.Model):
     notification_id = models.CharField(primary_key=True, max_length=100)
