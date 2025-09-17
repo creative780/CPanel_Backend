@@ -5,7 +5,7 @@ from .models import (
     Image, Product, ProductInventory, ProductVariant, VariantCombination,
     ShippingInfo, ProductSEO, Category, CategoryImage,
     SubCategory, SubCategoryImage, CategorySubCategoryMap, ProductSubCategoryMap,
-    Orders, OrderItem, OrderDelivery, Cart, CartItem,
+    Orders, OrderItem, OrderDelivery, BlogPost, BlogImage, BlogComment, Cart, CartItem,
     Notification, CallbackRequest,
     HeroBanner, HeroBannerImage,
     DeletedItemsCache, SiteSettings, DashboardSnapshot,
@@ -42,9 +42,9 @@ admin.site.register(OrderDelivery)
 admin.site.register(Cart)
 admin.site.register(CartItem)
 
-# admin.site.register(BlogPost)
-# admin.site.register(BlogImage)
-# admin.site.register(BlogComment)
+admin.site.register(BlogPost)
+admin.site.register(BlogImage)
+admin.site.register(BlogComment)
 
 admin.site.register(Notification)
 admin.site.register(CallbackRequest)

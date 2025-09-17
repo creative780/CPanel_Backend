@@ -4,7 +4,7 @@ from django.utils.timezone import now
 from .models import Admin, AdminRole, AdminRoleMap, Notification, DashboardSnapshot, SiteSettings
 import uuid
 from django.contrib.auth.signals import user_logged_in
-from .models import Product, Orders, Category, SubCategory
+from .models import Product, Orders, BlogPost, Category, SubCategory
 from django.contrib.auth.signals import user_logged_out
 
 
@@ -86,11 +86,11 @@ def notify_order_created_or_updated(sender, instance, created, **kwargs):
         message = f"Order '{instance.order_id}' status changed to '{instance.status}'."
     create_admin_notification(message, "Orders", instance.order_id)
 
-# @receiver(post_save, sender=BlogPost)
-# def notify_blog_created_or_updated(sender, instance, created, **kwargs):
-#     action = "published" if instance.status == "published" else "saved as draft"
-#     message = f"Blog '{instance.title}' was {action}."
-#     create_admin_notification(message, "Blog", instance.blog_id)
+@receiver(post_save, sender=BlogPost)
+def notify_blog_created_or_updated(sender, instance, created, **kwargs):
+    action = "published" if instance.status == "published" else "saved as draft"
+    message = f"Blog '{instance.title}' was {action}."
+    create_admin_notification(message, "Blog", instance.blog_id)
 
 @receiver(post_save, sender=Category)
 def notify_category_created_or_updated(sender, instance, created, **kwargs):
