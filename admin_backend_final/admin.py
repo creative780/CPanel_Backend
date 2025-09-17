@@ -5,7 +5,6 @@ from .models import (
     ShippingInfo, ProductSEO, Category, CategoryImage,
     SubCategory, SubCategoryImage, CategorySubCategoryMap, ProductSubCategoryMap,
     Orders, OrderItem, OrderDelivery, Cart, CartItem,
-    Blog, BlogCategory, BlogCategoryMap,
     Notification, CallbackRequest,
     HeroBanner, HeroBannerImage,
     DeletedItemsCache, SiteSettings, DashboardSnapshot,
@@ -40,9 +39,6 @@ admin.site.register(OrderDelivery)
 admin.site.register(Cart)
 admin.site.register(CartItem)
 
-admin.site.register(Blog)
-admin.site.register(BlogCategory)
-admin.site.register(BlogCategoryMap)
 
 admin.site.register(Notification)
 admin.site.register(CallbackRequest)
