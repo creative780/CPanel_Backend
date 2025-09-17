@@ -1,14 +1,17 @@
+
 from django.contrib import admin
 from .models import (
     User, Admin, AdminRole, AdminRoleMap,
     Image, Product, ProductInventory, ProductVariant, VariantCombination,
     ShippingInfo, ProductSEO, Category, CategoryImage,
     SubCategory, SubCategoryImage, CategorySubCategoryMap, ProductSubCategoryMap,
-    Orders, OrderItem, OrderDelivery, Cart, CartItem,
+    Orders, OrderItem, OrderDelivery, BlogPost, BlogImage, BlogComment, Cart, CartItem,
     Notification, CallbackRequest,
     HeroBanner, HeroBannerImage,
     DeletedItemsCache, SiteSettings, DashboardSnapshot,
-    ProductImage, Attribute
+    ProductImage, Attribute,
+    FirstCarousel,SecondCarousel, FirstCarouselImage, SecondCarouselImage,
+    Testimonial,
 )
 
 admin.site.register(User)
@@ -39,6 +42,9 @@ admin.site.register(OrderDelivery)
 admin.site.register(Cart)
 admin.site.register(CartItem)
 
+admin.site.register(BlogPost)
+admin.site.register(BlogImage)
+admin.site.register(BlogComment)
 
 admin.site.register(Notification)
 admin.site.register(CallbackRequest)
@@ -51,3 +57,10 @@ admin.site.register(SiteSettings)
 admin.site.register(DashboardSnapshot)
 
 admin.site.register(ProductImage)
+
+admin.site.register(FirstCarousel)
+admin.site.register(FirstCarouselImage)
+admin.site.register(SecondCarousel)
+admin.site.register(SecondCarouselImage)
+
+admin.site.register(Testimonial)

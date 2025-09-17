@@ -8,7 +8,6 @@ import traceback
 from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.text import slugify
-from django.contrib.auth.hashers import make_password, check_password
 from django.db import IntegrityError, transaction
 
 # Django REST Framework

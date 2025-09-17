@@ -1,5 +1,5 @@
 from django.urls import path
-from  . import views, utilities, category, order_cart, product, home_page
+from  . import views, utilities, category, order_cart, product, home_page, blog, testimonials
 from . import chat
 urlpatterns = [
     path('save-image/', utilities.SaveImageAPIView.as_view(), name='save_image'),
@@ -57,4 +57,15 @@ urlpatterns = [
     path("user-response/", chat.UserResponseAPIView.as_view(), name="user_response"),
     path("bot-response/", chat.BotResponseAPIView.as_view(), name="bot_response"),
     path("bot-prompts/", chat.BotPromptsAPIView.as_view(), name="bot_prompts"),
+    path("save-blog/", blog.SaveBlogAPIView.as_view(), name="save_blog"),
+    path("show-all-blogs/", blog.ShowAllBlogsAPIView.as_view(), name="show_blogs"),
+    path("edit-blog/<str:blog_id>/", blog.EditBlogAPIView.as_view(), name="edit_blog"),
+    path("delete-blogs/", blog.DeleteBlogsAPIView.as_view(), name="delete_blog"),
+    path('show-specific-blog/', blog.ShowSpecificBlogAPIView.as_view(), name='show_specific_blog'),
+    path("show-all-comments/", blog.ShowAllCommentsAPIView.as_view(), name="show_all_comments"),
+    path("save-comments/", blog.SaveCommentsAPIView.as_view(), name="save_comments"),
+    path("show-testimonials/", testimonials.ShowTestimonialsAPIView.as_view(), name="show_testimonials"),
+    path("save-testimonials/", testimonials.SaveTestimonialsAPIView.as_view(), name="save_testimonials"),
+    path("edit-testimonials/", testimonials.EditTestimonialsAPIView.as_view(), name="edit_testimonials"),
+
 ]

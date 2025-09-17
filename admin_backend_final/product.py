@@ -55,7 +55,9 @@ def save_product_basic(data, is_edit=False, existing_product=None):
     description = data.get('description', '')
     if description is None:
         description = ''  # keep non-null
-
+    long_description = data.get('long_description', '')
+    if long_description is None:
+        long_description = '' 
     status_val = data.get('status', 'active')
     quantity = int(data.get('quantity', 0) or 0)
     low_stock_alert = int(data.get('low_stock_alert', 0) or 0)
@@ -94,8 +96,9 @@ def save_product_basic(data, is_edit=False, existing_product=None):
             )
 
     # Shared assignment logic
-    product.title = name                         # title from 'name' (editable client-side)
-    product.description = description            # CHANGED: store raw HTML
+    product.title = name                     
+    product.description = description            
+    product.long_description = long_description 
     product.brand = brand
     product.price = price
     product.discounted_price = discounted_price
@@ -231,46 +234,199 @@ def save_product_subcategories(data, product):
                 ProductSubCategoryMap.objects.create(product=product, subcategory=sub)
             else:
                 logger.warning("Subcategory not found: %s", sub_id)
-
+                
 def save_product_images(data, product):
     """
-    Robust image save:
-      - Never swallow DatabaseError/IntegrityError (re-raise to rollback atomic block)
-      - Tolerate non-DB per-image errors and continue
+    Save/Update product images.
+
+    Accepts either:
+      - images_with_meta: [
+          {
+            "dataUrl": "data:image/..",   # OR existing "image_id"
+            "image_id": "IMG-..",         # optional if dataUrl is provided (new)
+            "url": "https://...",         # ignored for creation; used only to echo back elsewhere
+            "alt": "string",
+            "caption": "string",          # <-- caption now stored on ProductImage
+            "tags": ["a","b"] or "a,b",
+            "is_primary": true/false
+          }, ...
+        ]
+      - legacy: images: ["data:image/..", ...]  (+ image_alt_text)
+        (this path still works)
+
+    Behavior:
+      - If force_replace_images/force_replace is truthy, we wipe existing relations & product-linked images first.
+      - If not replacing, we *upsert* relations and update metadata on existing images by id.
+      - Only one ProductImage is_primary=True is enforced when any row sets it.
     """
-    image_data_list = data.get('images', []) or []
+    images_with_meta = data.get("images_with_meta") or []
+    legacy_images = data.get("images", []) or []
+    force_replace = bool(data.get("force_replace_images") or data.get("force_replace"))
 
-    # Delete existing images mapped to this product
-    try:
-        ProductImage.objects.filter(product=product).delete()
-        Image.objects.filter(linked_table='product', linked_id=product.product_id).delete()
-    except (DatabaseError, IntegrityError):
-        logger.exception("Image cleanup DB error")
-        raise
-    except Exception:
-        logger.exception("Non-DB error during image cleanup; continuing")
+    def _normalize_tags(val):
+        if val is None:
+            return []
+        if isinstance(val, str):
+            # support comma/pipe separated strings
+            parts = [p.strip() for p in val.replace("|", ",").split(",")]
+            return [p for p in parts if p]
+        if isinstance(val, (list, tuple, set)):
+            return [str(x).strip() for x in val if str(x).strip()]
+        return []
 
-    for img_data in image_data_list:
-        if not isinstance(img_data, str) or not img_data.strip():
-            continue
+    # -- If replacing, clear existing product images (relations + linked Image rows for this product)
+    if force_replace:
         try:
-            # Per-image savepoint: tolerate non-DB failures without poisoning the outer atomic
-            with transaction.atomic():
-                image = save_image(
-                    img_data,
-                    alt_text=data.get('image_alt_text', 'Product image'),
-                    tags='',
-                    linked_table='product',
-                    linked_page='product-page',
-                    linked_id=product.product_id
-                )
-                if image:
-                    ProductImage.objects.create(product=product, image=image)
+            ProductImage.objects.filter(product=product).delete()
+            Image.objects.filter(linked_table='product', linked_id=product.product_id).delete()
         except (DatabaseError, IntegrityError):
-            logger.exception("DB error while saving an image; aborting whole save")
+            logger.exception("Image cleanup DB error")
             raise
         except Exception:
-            logger.exception("Image save error (non-DB); skipping this image")
+            logger.exception("Non-DB error during image cleanup; continuing")
+
+    # For non-replace updates, pull current relations into memory
+    existing_rels_by_imgid = {}
+    if not force_replace:
+        for rel in ProductImage.objects.filter(product=product).select_related("image"):
+            iid = getattr(rel.image, "image_id", None)
+            if iid:
+                existing_rels_by_imgid[iid] = rel
+
+    made_rels = []                # keep created/ensured ProductImage rels to decide primary later
+    requested_primary_imgid = None
+
+    if images_with_meta:
+        for row in images_with_meta:
+            # Resolve or create Image
+            img_obj = None
+            img_id = row.get("image_id")
+
+            try:
+                if isinstance(row.get("dataUrl"), str) and row["dataUrl"].startswith("data:image/"):
+                    # Create new image from dataUrl
+                    tags_list = _normalize_tags(row.get("tags"))
+                    img_obj = save_image(
+                        row["dataUrl"],
+                        alt_text=row.get("alt") or 'Product image',
+                        tags=",".join(tags_list),
+                        linked_table='product',
+                        linked_page='product-page',
+                        linked_id=product.product_id
+                    )
+                    # NOTE: caption is NOT on Image; it's on ProductImage (relation), updated below.
+
+                elif img_id:
+                    img_obj = Image.objects.filter(pk=img_id).first()
+                    if img_obj and not force_replace and img_id in existing_rels_by_imgid:
+                        # metadata update on existing (only fields living on Image)
+                        dirty = False
+                        if "alt" in row and hasattr(img_obj, "alt_text"):
+                            img_obj.alt_text = row.get("alt") or ""
+                            dirty = True
+                        if "tags" in row and hasattr(img_obj, "tags"):
+                            img_obj.tags = ",".join(_normalize_tags(row.get("tags")))
+                            dirty = True
+                        if dirty:
+                            try:
+                                img_obj.save()
+                            except Exception:
+                                fields = []
+                                for f in ("alt_text", "tags"):
+                                    if hasattr(img_obj, f):
+                                        fields.append(f)
+                                if fields:
+                                    img_obj.save(update_fields=fields)
+
+                        # NEW: caption now lives on the ProductImage relation
+                        rel = existing_rels_by_imgid[img_id]
+                        if "caption" in row:
+                            rel.caption = row.get("caption") or ""
+                            try:
+                                rel.save(update_fields=["caption"])
+                            except Exception:
+                                rel.save()
+                else:
+                    # Neither dataUrl nor image_id => nothing we can do here
+                    continue
+
+                if not img_obj:
+                    continue
+
+                # Ensure relation exists
+                rel, _ = ProductImage.objects.get_or_create(product=product, image=img_obj)
+
+                # NEW: store per-product caption on the relation
+                if "caption" in row:
+                    rel.caption = row.get("caption") or ""
+                    try:
+                        rel.save(update_fields=["caption"])
+                    except Exception:
+                        rel.save()
+
+                made_rels.append(rel)
+
+                # Track requested primary (we enforce after loop)
+                if row.get("is_primary") is True:
+                    requested_primary_imgid = getattr(img_obj, "image_id", None)
+
+            except (DatabaseError, IntegrityError):
+                logger.exception("DB error while saving/linking image; aborting whole save")
+                raise
+            except Exception:
+                logger.exception("Image processing error; skipping this image row")
+                continue
+    else:
+        # Legacy behavior: simple list of data URLs
+        for img_data in legacy_images:
+            if not isinstance(img_data, str) or not img_data.strip():
+                continue
+            if not img_data.startswith("data:image/"):
+                continue
+            try:
+                with transaction.atomic():
+                    image = save_image(
+                        img_data,
+                        alt_text=data.get('image_alt_text', 'Product image'),
+                        tags='',
+                        linked_table='product',
+                        linked_page='product-page',
+                        linked_id=product.product_id
+                    )
+                    if image:
+                        rel = ProductImage.objects.create(product=product, image=image)
+                        made_rels.append(rel)
+            except (DatabaseError, IntegrityError):
+                logger.exception("DB error while saving an image; aborting whole save")
+                raise
+            except Exception:
+                logger.exception("Image save error (non-DB); skipping this image")
+                continue
+
+    # Enforce a single primary if caller requested one
+    if requested_primary_imgid:
+        try:
+            with transaction.atomic():
+                qs = ProductImage.objects.select_for_update().filter(product=product)
+                qs.update(is_primary=False)
+                target = qs.filter(image__image_id=requested_primary_imgid).first()
+                if target:
+                    target.is_primary = True
+                    target.save(update_fields=["is_primary"])
+        except Exception:
+            logger.exception("Failed to set requested primary image")
+
+    # If replacing and nothing was explicitly set primary, mark the first created as primary
+    if force_replace and not requested_primary_imgid and made_rels:
+        try:
+            with transaction.atomic():
+                qs = ProductImage.objects.select_for_update().filter(product=product)
+                qs.update(is_primary=False)
+                first_rel = made_rels[0]
+                first_rel.is_primary = True
+                first_rel.save(update_fields=["is_primary"])
+        except Exception:
+            logger.exception("Failed to set default primary on replace")
 
 def update_stock_status(inventory):
     quantity = inventory.stock_quantity
@@ -522,6 +678,7 @@ class ShowProductsAPIView(APIView):
                 # NEW
                 "rating": float(getattr(p, "rating", 0.0)) if getattr(p, "rating", None) is not None else 0.0,
                 "rating_count": int(getattr(p, "rating_count", 0)),
+                "long_description": getattr(p, "long_description", ""), 
             })
 
         return Response(out, status=status.HTTP_200_OK)
@@ -570,6 +727,7 @@ class ShowSpecificProductAPIView(APIView):
             "price_calculator": product.price_calculator,
             "video_url": product.video_url,
             "fit_description": product.description,  # raw HTML round-trips
+            "long_description": product.long_description,
             "stock_status": stock_status,
             "stock_quantity": stock_quantity,
             "low_stock_alert": low_stock_alert,
@@ -673,14 +831,32 @@ class ShowProductOtherDetailsAPIView(APIView):
                 if not d:
                     continue
                 url = d.get("url")
-                iid = getattr(rel.image, "image_id", None)
+                img = getattr(rel, "image", None)
+                iid = getattr(img, "image_id", None)
                 if url and iid and iid not in seen_image_ids:
                     seen_image_ids.add(iid)
                     image_urls.append(url)
+
+                    # read metadata
+                    alt_text = getattr(img, "alt_text", "") if img else ""
+                    # NEW: caption comes from the ProductImage relation
+                    caption = getattr(rel, "caption", "") or ""
+                    tags_val = getattr(img, "tags", "") if img else ""
+                    # normalize tags to list for FE
+                    if isinstance(tags_val, str):
+                        norm = [t.strip() for t in tags_val.replace("|", ",").split(",") if t.strip()]
+                    elif isinstance(tags_val, (list, tuple, set)):
+                        norm = [str(t).strip() for t in tags_val if str(t).strip()]
+                    else:
+                        norm = []
+
                     images_with_ids.append({
                         "id": iid,
                         "url": url,
                         "is_primary": bool(rel.is_primary),
+                        "alt": alt_text,
+                        "caption": caption,   # relation-based caption
+                        "tags": norm,
                     })
 
             subcategory_ids = list(
@@ -693,7 +869,7 @@ class ShowProductOtherDetailsAPIView(APIView):
 
             return Response({
                 "images": image_urls,                 # legacy: list[str]
-                "images_with_ids": images_with_ids,   # new: [{id,url,is_primary}]
+                "images_with_ids": images_with_ids,   # includes alt/caption/tags
                 "subcategory_ids": subcategory_ids
             }, status=status.HTTP_200_OK)
 
@@ -893,6 +1069,8 @@ class EditProductAPIView(APIView):
             ]
             has_new_images = len(incoming_images) > 0
 
+            images_with_meta = data.get("images_with_meta") or []  # NEW
+
             def _coerce_rating(val, fallback):
                 try:
                     v = float(val)
@@ -917,12 +1095,15 @@ class EditProductAPIView(APIView):
                 if 'name' in data and (data.get('name') or '').strip():
                     product.title = data.get('name').strip()
 
-                # CHANGED: only overwrite description if provided (including empty None guard);
-                # never force-empty on accidental "" from the client editor.
+                # Respect rich HTML; do not blank unless explicitly sent non-empty
                 if 'description' in data:
                     desc = data.get('description')
                     if desc is not None and desc != '':
-                        product.description = desc  # raw HTML as-is
+                        product.description = desc
+                if 'long_description' in data:
+                    ldesc = data.get('long_description')
+                    if ldesc is not None and ldesc != '':
+                        product.long_description = ldesc
 
                 product.brand = data.get('brand_title', product.brand)
                 if 'price' in data:
@@ -963,21 +1144,26 @@ class EditProductAPIView(APIView):
                     inventory.low_stock_alert = int(data['low_stock_alert'])
                 update_stock_status(inventory)
 
-                # Delegate to existing helpers (no changes needed)
+                # Delegate to existing helpers
                 save_product_seo(data, product)
                 save_shipping_info(data, product)
                 save_product_variants(data, product)
                 save_product_subcategories(data, product)
                 save_product_attributes(data, product)
 
-                if force_replace and has_new_images:
-                    save_product_images(
-                        {
-                            'images': incoming_images,
-                            'image_alt_text': (data.get('image_alt_text') or 'Alt-text').strip(),
-                        },
-                        product
-                    )
+                # Images:
+                # - If replacing and we have new images (legacy flow), keep supporting that.
+                # - Independently, if images_with_meta is provided, upsert metadata and/or add new images from dataUrls.
+                if (force_replace and has_new_images) or images_with_meta:
+                    payload_for_images = {
+                        # keep legacy support if caller used images list
+                        'images': incoming_images if (force_replace and has_new_images) else [],
+                        'image_alt_text': (data.get('image_alt_text') or 'Alt-text').strip(),
+                        # NEW preferred structure
+                        'images_with_meta': images_with_meta,
+                        'force_replace_images': bool(force_replace and has_new_images),
+                    }
+                    save_product_images(payload_for_images, product)
 
                 updated_products.append(product.product_id)
 

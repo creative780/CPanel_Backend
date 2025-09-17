@@ -1,7 +1,10 @@
-from django.db import models
-from django.contrib.auth.models import AbstractUser
-from django.conf import settings  # for AUTH_USER_MODEL-safe FKs
-from decimal import Decimal
+import uuid
+from django.db import models 
+from django.contrib.auth.models import AbstractUser 
+from django.conf import settings # for AUTH_USER_MODEL-safe FKs 
+from decimal import Decimal 
+from django.utils import timezone 
+from django.utils.text import slugify 
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 class User(AbstractUser):
@@ -63,7 +66,7 @@ class Image(models.Model):
     linked_id = models.CharField(max_length=100, blank=True, default="", db_index=True)
     linked_page = models.CharField(max_length=100, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
-
+    
     @property
     def url(self):
         try:
@@ -73,7 +76,6 @@ class Image(models.Model):
 
     def __str__(self):
         return self.image_id
-    
 
 class Category(models.Model):
     category_id = models.CharField(primary_key=True, max_length=100)
@@ -135,6 +137,7 @@ class Product(models.Model):
     product_id = models.CharField(primary_key=True, max_length=100)
     title = models.CharField(max_length=511, db_index=True)
     description = models.TextField()
+    long_description = models.TextField(blank=True, default="")
     brand = models.CharField(max_length=255, blank=True, default="")
     price = models.DecimalField(max_digits=10, decimal_places=2)
     discounted_price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -239,6 +242,7 @@ class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="images")
     image = models.ForeignKey(Image, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
+    caption = models.TextField(blank=True, default="")
     is_primary = models.BooleanField(default=False)
     
 class Attribute(models.Model):
@@ -338,7 +342,119 @@ class CartItem(models.Model):
     variant_signature = models.CharField(max_length=255, blank=True, default="", db_index=True)
     attributes_price_delta = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
     
+# === BLOG SYSTEM (aligned with your patterns) ===
+class BlogPost(models.Model):
+    blog_id = models.CharField(primary_key=True, max_length=100)
 
+    title = models.CharField(max_length=255, db_index=True)
+    slug = models.SlugField(max_length=255, unique=True)
+    content_html = models.TextField(blank=True, default="")         # Quill HTML
+    author = models.CharField(max_length=120, blank=True, default="")
+
+    # SEO / social
+    meta_title = models.CharField(max_length=255, blank=True, default="")
+    meta_description = models.TextField(blank=True, default="")
+    og_title = models.CharField(max_length=255, blank=True, default="")
+    og_image_url = models.URLField(blank=True, default="")
+    tags = models.CharField(max_length=255, blank=True, default="")  # CSV like "tag1, tag2"
+    schema_enabled = models.BooleanField(default=False)
+
+    # publishing
+    publish_date = models.DateTimeField(null=True, blank=True)
+    draft = models.BooleanField(default=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[("draft", "Draft"), ("scheduled", "Scheduled"), ("published", "Published")],
+        default="draft",
+        db_index=True,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def compute_status(self):
+        # authoritative status, stored lower-case to match your enums elsewhere
+        if self.draft:
+            return "draft"
+        if self.publish_date and self.publish_date > timezone.now():
+            return "scheduled"
+        return "published"
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.title)[:255]
+        self.status = self.compute_status()
+        super().save(*args, **kwargs)
+
+class BlogImage(models.Model):
+    """
+    Mirrors your ProductImage pattern.
+    Multiple images per blog; one may be primary; ordered; optional caption.
+    """
+    blog = models.ForeignKey(BlogPost, on_delete=models.CASCADE, related_name="images")
+    image = models.ForeignKey("Image", on_delete=models.CASCADE)
+    caption = models.TextField(blank=True, default="")
+    is_primary = models.BooleanField(default=False)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+        indexes = [
+            models.Index(fields=["blog"]),
+            models.Index(fields=["image"]),
+        ]
+        unique_together = ("blog", "image")  # same image not linked twice
+
+class BlogComment(models.Model):
+    """
+    Minimal, API-aligned comment entity:
+    - comment_id: UUID primary key (serializes to string)
+    - blog (FK)    -> BlogPost.blog_id
+    - name, email, website, comment
+    - created_at, updated_at
+    """
+    comment_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Store FK against BlogPost.blog_id (which is the PK and a CharField)
+    blog = models.ForeignKey(
+        BlogPost,
+        on_delete=models.CASCADE,
+        related_name="comments",
+        db_column="blog_id",         # column named exactly "blog_id"
+        to_field="blog_id",          # link to BlogPost.blog_id
+    )
+
+    # Author fields
+    name = models.CharField(max_length=120)
+    email = models.EmailField(max_length=254)
+    website = models.URLField(blank=True, default="")
+
+    # Content
+    comment = models.TextField()
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["blog"]),
+            models.Index(fields=["created_at"]),
+        ]
+
+    def __str__(self):
+        return f"Comment {self.comment_id} on {self.blog_id_display}"
+
+    @property
+    def blog_id_display(self) -> str:
+        # Convenience for admin/readability
+        return getattr(self.blog, "blog_id", "")
+    
 class Notification(models.Model):
     notification_id = models.CharField(primary_key=True, max_length=100)
     type = models.CharField(max_length=100, db_index=True)
@@ -481,3 +597,81 @@ class SecondCarouselImage(models.Model):
     caption = models.CharField(max_length=255, default="", blank=True)
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
+
+class Testimonial(models.Model):
+    """
+    Single-source-of-truth for customer testimonials.
+    - Char PK to align with your ID strategy
+    - Optional FK to Image (preferred), with fallback image_url for external avatars
+    - Integer rating (1–5), validated
+    - Publish workflow via status field
+    - Creator bookkeeping mirrors Product.created_by / created_by_type
+    """
+    testimonial_id = models.CharField(primary_key=True, max_length=100)
+
+    # Core content
+    name = models.CharField(max_length=255, db_index=True)
+    role = models.CharField(max_length=255, blank=True, default="")
+    content = models.TextField()
+
+    # Avatar (prefer internal Image; allow external URL as fallback)
+    image = models.ForeignKey(
+        Image,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="testimonial_avatars",
+    )
+    image_url = models.URLField(blank=True, default="")  # used when no Image FK
+
+    # Rating: 1..5 (whole-star scale to match frontend UI)
+    rating = models.PositiveSmallIntegerField(
+        default=5,
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        db_index=True,
+        help_text="Whole-star rating from 1 to 5.",
+    )
+
+    # Publish state
+    status = models.CharField(
+        max_length=20,
+        choices=[("draft", "Draft"), ("published", "Published")],
+        default="draft",
+        db_index=True,
+    )
+
+    # Audit / ordering
+    created_by = models.CharField(max_length=100, blank=True, default="")
+    created_by_type = models.CharField(
+        max_length=10,
+        choices=[("admin", "Admin"), ("user", "User")],
+        blank=True,
+        default="admin",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    order = models.PositiveIntegerField(default=0, db_index=True)
+
+    class Meta:
+        ordering = ["order", "-updated_at", "-created_at"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["rating"]),
+            models.Index(fields=["created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.role})"
+
+    @property
+    def avatar_url(self) -> str:
+        """
+        Serializer-friendly: prefer managed Image file, fall back to image_url, else empty.
+        Frontend already handles default avatar when this is empty.
+        """
+        try:
+            if self.image and self.image.image_file:
+                return self.image.image_file.url
+        except ValueError:
+            pass
+        return self.image_url or ""
