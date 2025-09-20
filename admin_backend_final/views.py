@@ -348,6 +348,102 @@ class SaveAdminAPIView(APIView):
                 "hint": "Check for admin_id collisions or access_pages misconfig"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# ---- EDIT ADMIN ----
+class EditAdminAPIView(APIView):
+    permission_classes = [FrontendOnlyPermission]
+
+    def post(self, request):
+        """
+        Expected JSON:
+        {
+          "admin_id": "A-123...",
+          "admin_name": "newname",
+          "role_name": "Admin",
+          "access_pages": ["Products Section", ...],
+          "password": "optional-new-password"   # optional
+        }
+        """
+        try:
+            data = request.data
+            admin_id = data.get("admin_id")
+            admin_name = (data.get("admin_name") or "").strip()
+            role_name = (data.get("role_name") or "").strip()
+            access_pages = data.get("access_pages", None)  # list or None
+            new_password = (data.get("password") or "").strip()
+
+            # Validate
+            if not admin_id:
+                return Response({"success": False, "error": "admin_id is required"},
+                                status=status.HTTP_400_BAD_REQUEST)
+            if not admin_name or not role_name:
+                return Response({"success": False, "error": "admin_name and role_name are required"},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            # Fetch target admin
+            try:
+                admin = Admin.objects.get(admin_id=admin_id)
+            except Admin.DoesNotExist:
+                return Response({"success": False, "error": "Admin not found"},
+                                status=status.HTTP_404_NOT_FOUND)
+
+            # Enforce unique username (case-insensitive) excluding current admin
+            exists_conflict = Admin.objects.exclude(admin_id=admin_id) \
+                .filter(admin_name__iexact=admin_name).exists()
+            if exists_conflict:
+                return Response({"success": False, "error": "Username already exists"},
+                                status=status.HTTP_409_CONFLICT)
+
+            # Update username
+            admin.admin_name = admin_name
+
+            # Optional password update (maintaining plaintext compat per current system)
+            if new_password:
+                admin.password_hash = new_password
+
+            admin.save()
+
+            # Create or update role
+            role, created = AdminRole.objects.get_or_create(
+                role_name=role_name,
+                defaults={
+                    "role_id": f"R-{role_name}",
+                    "description": f"{role_name} role",
+                    "access_pages": access_pages or []
+                }
+            )
+
+            # If role already exists and client sent access_pages, update it
+            # (Note: role.access_pages is shared across all admins with this role)
+            if not created and access_pages is not None:
+                role.access_pages = access_pages
+                role.save()
+
+            # Update admin ↔ role mapping
+            AdminRoleMap.objects.update_or_create(
+                admin=admin,
+                defaults={"role": role}
+            )
+
+            # Response payload aligned with ShowAdminAPIView shape (where possible)
+            return Response({
+                "success": True,
+                "admin": {
+                    "admin_id": admin.admin_id,
+                    "admin_name": admin.admin_name,
+                    "password_hash": admin.password_hash,
+                    "role_id": role.role_id,
+                    "role_name": role.role_name,
+                    "access_pages": role.access_pages,
+                    "created_at": admin.created_at,
+                }
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            traceback.print_exc()
+            return Response({"success": False, "error": str(e)},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class DeleteAdminAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 

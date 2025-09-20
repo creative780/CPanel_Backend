@@ -1,8 +1,9 @@
 # Standard Library
 import json
+import hashlib
 import uuid
 import traceback
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 
 # Django
@@ -22,6 +23,106 @@ from .utilities import generate_custom_order_id
 from .models import *  # Consider specifying models instead of wildcard import
 from .permissions import FrontendOnlyPermission
 
+def _compute_attributes_delta_and_details(self, selected_attrs: dict) -> tuple[Decimal, list]:
+    """
+    selected_attrs looks like { "<parent_attr_id>": "<option_attr_id>", ... }
+    Sum price_delta from each option attr and return human details, ordered by:
+      1) parent Attribute.order
+      2) option Attribute.order
+      3) attribute_name (tiebreaker)
+    """
+    total_delta = Decimal("0.00")
+    details = []
+
+    if not isinstance(selected_attrs, dict) or not selected_attrs:
+        return total_delta, details
+
+    pairs = list(selected_attrs.items())
+    ids = {pid for pid, _ in pairs} | {oid for _, oid in pairs}
+    attr_qs = (Attribute.objects
+               .filter(attr_id__in=list(ids))
+               .select_related("parent")
+               .only("attr_id", "name", "label", "price_delta", "order", "parent_id"))
+    by_id = {a.attr_id: a for a in attr_qs}
+
+    enriched = []
+    for parent_id, opt_id in pairs:
+        opt = by_id.get(opt_id)
+        parent = by_id.get(parent_id)
+        if not parent and opt and opt.parent and getattr(opt.parent, "attr_id", None) == parent_id:
+            parent = opt.parent
+
+        parent_order = getattr(parent, "order", 0) or 0
+        option_order = getattr(opt, "order", 0) or 0
+        price_delta = Decimal(str(getattr(opt, "price_delta", 0) or 0))
+        total_delta += price_delta
+
+        enriched.append((
+            parent_order,
+            option_order,
+            {
+                "attribute_id": parent_id,
+                "option_id": opt_id,
+                "attribute_name": getattr(parent, "name", parent_id),
+                "option_label": getattr(opt, "label", opt_id),
+                "price_delta": str(price_delta),
+                "attribute_order": parent_order,
+                "option_order": option_order,
+            }
+        ))
+
+    enriched.sort(key=lambda t: (t[0], t[1], t[2]["attribute_name"]))
+    details = [x[2] for x in enriched]
+    return total_delta, details
+
+def _attr_humanize(self, sel: dict):
+    """
+    Return (details_list, delta_sum_decimal) in a deterministic order:
+      - parent Attribute.order, then option Attribute.order, then attribute_name.
+    """
+    details = []
+    total_delta = Decimal("0.00")
+
+    if not isinstance(sel, dict) or not sel:
+        return details, total_delta
+
+    pairs = list(sel.items())
+    ids = {pid for pid, _ in pairs} | {oid for _, oid in pairs}
+    attr_qs = (Attribute.objects
+               .filter(attr_id__in=list(ids))
+               .select_related("parent")
+               .only("attr_id", "name", "label", "price_delta", "order", "parent_id"))
+    by_id = {a.attr_id: a for a in attr_qs}
+
+    enriched = []
+    for parent_id, opt_id in pairs:
+        opt = by_id.get(opt_id)
+        parent = by_id.get(parent_id)
+        if not parent and opt and opt.parent and getattr(opt.parent, "attr_id", None) == parent_id:
+            parent = opt.parent
+
+        parent_order = getattr(parent, "order", 0) or 0
+        option_order = getattr(opt, "order", 0) or 0
+        price_delta = Decimal(str(getattr(opt, "price_delta", 0) or 0))
+        total_delta += price_delta
+
+        enriched.append((
+            parent_order,
+            option_order,
+            {
+                "attribute_id": parent_id,
+                "option_id": opt_id,
+                "attribute_name": getattr(parent, "name", parent_id),
+                "option_label": getattr(opt, "label", opt_id),
+                "price_delta": str(price_delta),
+                "attribute_order": parent_order,
+                "option_order": option_order,
+            }
+        ))
+
+    enriched.sort(key=lambda t: (t[0], t[1], t[2]["attribute_name"]))
+    details = [x[2] for x in enriched]
+    return details, total_delta
 
 class SaveCartAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -68,36 +169,60 @@ class SaveCartAPIView(APIView):
 
     def post(self, request):
         try:
-            data = request.data if isinstance(request.data, dict) else json.loads(request.body or "{}")
+            # ---- Parse payload safely
+            if isinstance(request.data, dict):
+                data = request.data
+            else:
+                try:
+                    data = json.loads(request.body or "{}")
+                except json.JSONDecodeError:
+                    return Response({"error": "Invalid JSON payload."}, status=status.HTTP_400_BAD_REQUEST)
 
             device_uuid = data.get("device_uuid") or request.headers.get("X-Device-UUID")
             if not device_uuid:
                 return Response({"error": "Missing device UUID."}, status=status.HTTP_400_BAD_REQUEST)
 
-            product_id = data.get('product_id')
-            quantity = int(data.get('quantity', 1))
-            selected_size = data.get("selected_size") or ""
+            product_id = data.get("product_id")
+            if not product_id:
+                return Response({"error": "Missing product_id."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # quantity guardrails
+            try:
+                quantity = int(data.get("quantity", 1))
+            except (TypeError, ValueError):
+                return Response({"error": "Invalid quantity."}, status=status.HTTP_400_BAD_REQUEST)
+            if quantity < 1:
+                quantity = 1
+
+            selected_size = (data.get("selected_size") or "").strip()
             selected_attributes = data.get("selected_attributes") or {}
+            if not isinstance(selected_attributes, dict):
+                return Response({"error": "selected_attributes must be an object."}, status=status.HTTP_400_BAD_REQUEST)
 
             product = get_object_or_404(Product, product_id=product_id)
             _ = get_object_or_404(ProductInventory, product=product)
 
             cart = self._get_primary_cart(device_uuid)
 
-            # Compute attribute price delta and human details
+            # ---- Pricing
             attributes_delta, _human_details = self._compute_attributes_delta_and_details(selected_attributes)
-
-            # Base price (use discounted if given, else normal)
-            base_price = Decimal(str(product.discounted_price or product.price or 0))
+            try:
+                base_price = Decimal(str(product.discounted_price or product.price or 0))
+            except (InvalidOperation, TypeError):
+                base_price = Decimal("0.00")
             unit_price = base_price + attributes_delta
 
-            # Signature ensures "same selection" merges
-            # Use option IDs to ensure uniqueness even if labels change
-            sig_parts = [f"size:{selected_size}"] + [
-                f"{k}:{v}" for k, v in sorted(selected_attributes.items(), key=lambda x: x[0])
-            ]
-            variant_signature = "|".join(sig_parts)
+            # ---- Stable, short variant signature (<=255) via SHA-256
+            # Include size and a sorted view of attributes so signature is deterministic.
+            sig_payload = {
+                "size": selected_size,
+                "attrs": dict(sorted(selected_attributes.items(), key=lambda x: x[0])),
+            }
+            sig_str = json.dumps(sig_payload, separators=(",", ":"), sort_keys=True)
+            sig_hash = hashlib.sha256(sig_str.encode("utf-8")).hexdigest()  # 64 chars
+            variant_signature = f"v1:{sig_hash}"  # total length ~67, well under 255
 
+            # ---- Upsert cart item by variant signature
             cart_item, created = CartItem.objects.get_or_create(
                 cart=cart,
                 product=product,
@@ -107,7 +232,7 @@ class SaveCartAPIView(APIView):
                     "quantity": quantity,
                     "price_per_unit": unit_price,
                     "subtotal": unit_price * quantity,
-                    "selected_size": selected_size,
+                    "selected_size": selected_size[:50] if selected_size else "",  # fit field limit
                     "selected_attributes": selected_attributes,
                     "attributes_price_delta": attributes_delta,
                 }
@@ -117,17 +242,20 @@ class SaveCartAPIView(APIView):
                 cart_item.quantity += quantity
                 cart_item.price_per_unit = unit_price  # keep latest pricing
                 cart_item.attributes_price_delta = attributes_delta
-                cart_item.selected_size = selected_size
+                cart_item.selected_size = selected_size[:50] if selected_size else ""
                 cart_item.selected_attributes = selected_attributes
                 cart_item.subtotal = unit_price * cart_item.quantity
-                cart_item.save()
+                cart_item.save(update_fields=[
+                    "quantity", "price_per_unit", "attributes_price_delta",
+                    "selected_size", "selected_attributes", "subtotal"
+                ])
 
             return Response({"message": "Cart updated successfully."}, status=status.HTTP_200_OK)
 
         except Exception as e:
             print("❌ [SAVE_CART] Error:", str(e))
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
+                            
 class ShowCartAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
@@ -265,7 +393,6 @@ class DeleteCartItemAPIView(APIView):
         
 class SaveOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
-
     @transaction.atomic
     def post(self, request):
         try:
@@ -286,7 +413,7 @@ class SaveOrderAPIView(APIView):
             order_id = generate_custom_order_id(user_name, email or "")
             order = Orders.objects.create(
                 order_id=order_id,
-                device_uuid=device_uuid,  # ← NEW
+                device_uuid=device_uuid,
                 user_name=user_name,
                 order_date=timezone.now(),
                 status=data.get("status", "pending"),
@@ -320,8 +447,54 @@ class SaveOrderAPIView(APIView):
 
                 selected_size = (item.get("selected_size") or "").strip()
                 selected_attributes = item.get("selected_attributes") or {}
-                selected_attributes_human = item.get("selected_attributes_human") or []
                 variant_signature = item.get("variant_signature") or ""
+
+                # Ordered humanization (inline, no extra function)
+                # Build deterministic, UI-friendly list
+                ordered_human = []
+                if isinstance(selected_attributes, dict) and selected_attributes:
+                    pairs = list(selected_attributes.items())
+                    ids = {pid for pid, _ in pairs} | {oid for _, oid in pairs}
+                    attr_qs = (Attribute.objects
+                            .filter(attr_id__in=list(ids))
+                            .select_related("parent")
+                            .only("attr_id", "name", "label", "price_delta", "order", "parent_id"))
+                    by_id = {a.attr_id: a for a in attr_qs}
+
+                    enriched = []
+                    for parent_id, opt_id in pairs:
+                        opt = by_id.get(opt_id)
+                        parent = by_id.get(parent_id)
+                        if not parent and opt and opt.parent and getattr(opt.parent, "attr_id", None) == parent_id:
+                            parent = opt.parent
+                        parent_order = getattr(parent, "order", 0) or 0
+                        option_order = getattr(opt, "order", 0) or 0
+                        price_delta_h = Decimal(str(getattr(opt, "price_delta", 0) or 0))
+                        enriched.append((
+                            parent_order,
+                            option_order,
+                            {
+                                "attribute_id": parent_id,
+                                "option_id": opt_id,
+                                "attribute_name": getattr(parent, "name", parent_id),
+                                "option_label": getattr(opt, "label", opt_id),
+                                "price_delta": str(price_delta_h),
+                                "attribute_order": parent_order,
+                                "option_order": option_order,
+                            }
+                        ))
+                    enriched.sort(key=lambda t: (t[0], t[1], t[2]["attribute_name"]))
+                    ordered_human = [x[2] for x in enriched]
+
+                # Ensure variant_signature parity with cart if missing
+                if not variant_signature:
+                    sig_payload = {
+                        "size": selected_size,
+                        "attrs": dict(sorted((selected_attributes or {}).items(), key=lambda x: x[0])),
+                    }
+                    sig_str = json.dumps(sig_payload, separators=(",", ":"), sort_keys=True)
+                    sig_hash = hashlib.sha256(sig_str.encode("utf-8")).hexdigest()
+                    variant_signature = f"v1:{sig_hash}"
 
                 price_breakdown = {
                     "base_price": str(base_price),
@@ -329,7 +502,7 @@ class SaveOrderAPIView(APIView):
                     "unit_price": str(unit_price),
                     "line_total": str(total_price),
                     "selected_size": selected_size,
-                    "selected_attributes_human": selected_attributes_human,
+                    "selected_attributes_human": ordered_human,
                 }
 
                 OrderItem.objects.create(
@@ -341,7 +514,7 @@ class SaveOrderAPIView(APIView):
                     total_price=total_price,
                     selected_size=selected_size,
                     selected_attributes=selected_attributes,
-                    selected_attributes_human=selected_attributes_human,
+                    selected_attributes_human=ordered_human,  # ordered for FE
                     variant_signature=variant_signature,
                     attributes_price_delta=attrs_delta,
                     price_breakdown=price_breakdown,
@@ -379,7 +552,6 @@ class SaveOrderAPIView(APIView):
 
 class ShowOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
-
     def get(self, request):
         try:
             orders_data = []
@@ -405,7 +577,7 @@ class ShowOrderAPIView(APIView):
 
                 items_detail = []
                 for it in order_items:
-                    human = it.selected_attributes_human or []
+                    human = it.selected_attributes_human or []  # already ordered
                     tokens = []
                     if it.selected_size:
                         tokens.append(f"Size: {it.selected_size}")
@@ -431,7 +603,13 @@ class ShowOrderAPIView(APIView):
                         "quantity": it.quantity,
                         "unit_price": str(it.unit_price),
                         "total_price": str(it.total_price),
-                        "selection": selection_str,
+
+                        # Expose cart-parity fields to FE:
+                        "selected_size": it.selected_size or "",
+                        "selected_attributes": it.selected_attributes or {},        # raw ids
+                        "selected_attributes_human": human,                         # ordered list
+                        "selection": selection_str,                                 # legacy compact line
+
                         "math": {
                             "base": str(base),
                             "deltas": [str(x) for x in deltas],
@@ -459,10 +637,9 @@ class ShowOrderAPIView(APIView):
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
 class EditOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
-
     @transaction.atomic
     def put(self, request):
         try:
@@ -507,8 +684,53 @@ class EditOrderAPIView(APIView):
 
                     selected_size = (item.get("selected_size") or "").strip()
                     selected_attributes = item.get("selected_attributes") or {}
-                    selected_attributes_human = item.get("selected_attributes_human") or []
                     variant_signature = item.get("variant_signature") or ""
+
+                    # Ordered humanization (inline)
+                    ordered_human = []
+                    if isinstance(selected_attributes, dict) and selected_attributes:
+                        pairs = list(selected_attributes.items())
+                        ids = {pid for pid, _ in pairs} | {oid for _, oid in pairs}
+                        attr_qs = (Attribute.objects
+                                .filter(attr_id__in=list(ids))
+                                .select_related("parent")
+                                .only("attr_id", "name", "label", "price_delta", "order", "parent_id"))
+                        by_id = {a.attr_id: a for a in attr_qs}
+
+                        enriched = []
+                        for parent_id, opt_id in pairs:
+                            opt = by_id.get(opt_id)
+                            parent = by_id.get(parent_id)
+                            if not parent and opt and opt.parent and getattr(opt.parent, "attr_id", None) == parent_id:
+                                parent = opt.parent
+                            parent_order = getattr(parent, "order", 0) or 0
+                            option_order = getattr(opt, "order", 0) or 0
+                            price_delta_h = Decimal(str(getattr(opt, "price_delta", 0) or 0))
+                            enriched.append((
+                                parent_order,
+                                option_order,
+                                {
+                                    "attribute_id": parent_id,
+                                    "option_id": opt_id,
+                                    "attribute_name": getattr(parent, "name", parent_id),
+                                    "option_label": getattr(opt, "label", opt_id),
+                                    "price_delta": str(price_delta_h),
+                                    "attribute_order": parent_order,
+                                    "option_order": option_order,
+                                }
+                            ))
+                        enriched.sort(key=lambda t: (t[0], t[1], t[2]["attribute_name"]))
+                        ordered_human = [x[2] for x in enriched]
+
+                    # Ensure variant_signature if missing
+                    if not variant_signature:
+                        sig_payload = {
+                            "size": selected_size,
+                            "attrs": dict(sorted((selected_attributes or {}).items(), key=lambda x: x[0])),
+                        }
+                        sig_str = json.dumps(sig_payload, separators=(",", ":"), sort_keys=True)
+                        sig_hash = hashlib.sha256(sig_str.encode("utf-8")).hexdigest()
+                        variant_signature = f"v1:{sig_hash}"
 
                     price_breakdown = {
                         "base_price": str(base_price),
@@ -516,7 +738,7 @@ class EditOrderAPIView(APIView):
                         "unit_price": str(unit_price),
                         "line_total": str(total_price),
                         "selected_size": selected_size,
-                        "selected_attributes_human": selected_attributes_human,
+                        "selected_attributes_human": ordered_human,
                     }
 
                     OrderItem.objects.create(
@@ -528,7 +750,7 @@ class EditOrderAPIView(APIView):
                         total_price=total_price,
                         selected_size=selected_size,
                         selected_attributes=selected_attributes,
-                        selected_attributes_human=selected_attributes_human,
+                        selected_attributes_human=ordered_human,  # ordered
                         variant_signature=variant_signature,
                         attributes_price_delta=attrs_delta,
                         price_breakdown=price_breakdown,
@@ -590,6 +812,7 @@ class EditOrderAPIView(APIView):
         except Exception as e:
             print(traceback.format_exc())
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class ShowSpecificUserOrdersAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]

@@ -1,5 +1,5 @@
 from django.urls import path
-from  . import views, utilities, category, order_cart, product, home_page, blog, testimonials
+from  . import views, utilities, category, order_cart, product, home_page, blog, testimonials, attribute
 from . import chat
 urlpatterns = [
     path('save-image/', utilities.SaveImageAPIView.as_view(), name='save_image'),
@@ -30,6 +30,9 @@ urlpatterns = [
     path('show_product_attributes/', product.ShowProductAttributesAPIView.as_view(), name='show_product_attributes'),
     path('link-product-subcategory/', product.LinkProductToSubcategoriesAPIView.as_view(), name='link-product-subcategory'),
     path('unlink-product-subcategory/', product.UnlinkProductFromSubcategoriesAPIView.as_view(), name='unlink-product-subcategory'),
+    path("show-product-comment/", testimonials.ShowProductCommentAPIView.as_view(), name="show-product-comment"),
+    path("edit-product-comment/", testimonials.EditProductCommentAPIView.as_view(), name="edit-product-comment"),
+    path("delete-product-comment/", testimonials.DeleteProductCommentAPIView.as_view(), name="delete-product-comment"),
     path('show_nav_items/', views.ShowNavItemsAPIView.as_view(), name='show_nav_items'),
     path('show-user/', views.ShowUserAPIView.as_view(), name='show_users'),
     path('save-user/', views.SaveUserAPIView.as_view(), name='save_user'),
@@ -43,6 +46,7 @@ urlpatterns = [
     path("show-specific-user-orders/", order_cart.ShowSpecificUserOrdersAPIView.as_view(), name="show_specific_user_orders"),
     path('save-admin/', views.SaveAdminAPIView.as_view(), name='save_admin'),
     path('show-admin/', views.ShowAdminAPIView.as_view(), name='show_admin'),
+    path('edit-admin/', views.EditAdminAPIView.as_view(), name='edit_admin'),
     path('delete-admin/', views.DeleteAdminAPIView.as_view(), name='delete_admin'),
     path('admin-login/', views.AdminLoginAPIView.as_view(), name='admin_login'),
     path('show-all-images/', views.ShowAllImagesAPIView.as_view(), name='show_all_images'),
@@ -67,5 +71,9 @@ urlpatterns = [
     path("show-testimonials/", testimonials.ShowTestimonialsAPIView.as_view(), name="show_testimonials"),
     path("save-testimonials/", testimonials.SaveTestimonialsAPIView.as_view(), name="save_testimonials"),
     path("edit-testimonials/", testimonials.EditTestimonialsAPIView.as_view(), name="edit_testimonials"),
+    path("show-subcat-attributes/", attribute.ShowSubcatAttributesAPIView.as_view(), name="show-subcat-attributes"),
+    path("save-subcat-attributes/", attribute.SaveSubcatAttributesAPIView.as_view(), name="save-subcat-attributes"),
+    path("edit-subcat-attributes/", attribute.EditSubcatAttributesAPIView.as_view(), name="edit-subcat-attributes"),
+    path("delete-subcat-attributes/", attribute.DeleteSubcatAttributesAPIView.as_view(), name="delete-subcat-attributes"),
 
 ]
