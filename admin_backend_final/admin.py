@@ -9,9 +9,9 @@ from .models import (
     Notification, CallbackRequest,
     HeroBanner, HeroBannerImage,
     DeletedItemsCache, SiteSettings, DashboardSnapshot,
-    ProductImage, Attribute,
-    FirstCarousel,SecondCarousel, FirstCarouselImage, SecondCarouselImage,
-    Testimonial,
+    ProductImage, Attribute, AttributeSubCategory,
+    FirstCarousel, SecondCarousel, FirstCarouselImage, SecondCarouselImage,
+    Testimonial, ProductTestimonial
 )
 
 admin.site.register(User)
@@ -27,6 +27,7 @@ admin.site.register(VariantCombination)
 admin.site.register(Attribute)
 admin.site.register(ShippingInfo)
 admin.site.register(ProductSEO)
+admin.site.register(ProductTestimonial)
 
 admin.site.register(Category)
 admin.site.register(CategoryImage)
@@ -64,3 +65,4 @@ admin.site.register(SecondCarousel)
 admin.site.register(SecondCarouselImage)
 
 admin.site.register(Testimonial)
+admin.site.register(AttributeSubCategory)

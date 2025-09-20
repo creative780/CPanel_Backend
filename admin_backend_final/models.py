@@ -6,6 +6,8 @@ from decimal import Decimal
 from django.utils import timezone 
 from django.utils.text import slugify 
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
+
 
 class User(AbstractUser):
     user_id = models.CharField(primary_key=True, max_length=100)
@@ -132,6 +134,68 @@ class CategorySubCategoryMap(models.Model):
         ]
         unique_together = ("category", "subcategory")
 
+class AttributeSubCategory(models.Model):
+    """
+    Attribute/option system for Products & SubCategories.
+
+    Each record represents a single attribute definition (e.g. "Size", "Color"),
+    optionally scoped to one or more subcategories.
+    """
+
+    attribute_id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    # Core info
+    name = models.CharField(max_length=255, db_index=True)
+    slug = models.SlugField(max_length=255, unique=True, db_index=True)
+    type = models.CharField(
+        max_length=50,
+        choices=[
+            ("size", "Size"),
+            ("color", "Color"),
+            ("material", "Material"),
+            ("custom", "Custom"),
+        ],
+        default="custom",
+        db_index=True,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=[("visible", "Visible"), ("hidden", "Hidden")],
+        default="visible",
+        db_index=True,
+    )
+
+    # Option list: each item is {id, name, price_delta?, is_default?, image_data?}
+    values = models.JSONField(default=list, blank=True)
+
+    # Scope: empty list means global attribute
+    subcategory_ids = models.JSONField(default=list, blank=True)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        # Optional: enforce at least one value
+        if not isinstance(self.values, list):
+            raise ValueError("values must be a list of option objects")
+        # Validate price_delta and is_default if present
+        defaults = [v for v in self.values if v.get("is_default")]
+        if len(defaults) > 1:
+            raise ValueError("Only one option can be marked as default.")
+
+    @property
+    def is_global(self):
+        """True if this attribute is available to all subcategories."""
+        return len(self.subcategory_ids or []) == 0
+    
 # === PRODUCT SYSTEM ===
 class Product(models.Model):
     product_id = models.CharField(primary_key=True, max_length=100)
@@ -245,6 +309,113 @@ class ProductImage(models.Model):
     caption = models.TextField(blank=True, default="")
     is_primary = models.BooleanField(default=False)
     
+class ProductTestimonial(models.Model):
+    """
+    Minimal, API-aligned testimonial/comment entity for Products or SubCategories.
+
+    Fields mirror the frontend:
+      - name, email
+      - content (comment body)
+      - rating (0..5, 0.5 steps allowed)
+      - rating_count (usually 1 per comment; kept for parity)
+      - status: approved | pending | rejected | hidden
+      - FK to either Product OR SubCategory (exactly one required)
+      - created_at / updated_at
+    """
+    testimonial_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Link to either a product or a subcategory (one must be non-null)
+    product = models.ForeignKey(
+        "Product",
+        to_field="product_id",
+        db_column="product_id",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="testimonials",
+    )
+    subcategory = models.ForeignKey(
+        "SubCategory",
+        to_field="subcategory_id",
+        db_column="subcategory_id",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="testimonials",
+    )
+
+    # Author + content
+    name = models.CharField(max_length=120, db_index=True)
+    email = models.EmailField(max_length=254)
+    content = models.TextField()  # sanitized on the frontend; still validate server-side later
+
+    # Ratings (per-comment)
+    rating = models.FloatField(
+        default=0.0,
+        validators=[MinValueValidator(0.0), MaxValueValidator(5.0)],
+        help_text="Allowed values: 0, 0.5, 1, ... , 5",
+        db_index=True,
+    )
+    rating_count = models.PositiveIntegerField(default=1)
+
+    # Moderation / visibility
+    STATUS_CHOICES = (
+        ("pending", "Pending"),
+        ("approved", "Approved"),
+        ("rejected", "Rejected"),
+        ("hidden", "Hidden"),
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending",
+        db_index=True,
+    )
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["product"]),
+            models.Index(fields=["subcategory"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["rating"]),
+            models.Index(fields=["created_at"]),
+        ]
+
+    def __str__(self):
+        target = self.product_id_display or self.subcategory_id_display or "unlinked"
+        return f"Testimonial {self.testimonial_id} by {self.name} → {target}"
+
+    def clean(self):
+        """
+        Enforce exactly one target: either product or subcategory, not both, not neither.
+        """
+        if bool(self.product) == bool(self.subcategory):
+            raise ValidationError("Exactly one of product or subcategory must be set.")
+
+        # Enforce half-star steps (0, 0.5, 1, ... 5) as per frontend constraints.
+        allowed = {x * 0.5 for x in range(11)}
+        if float(self.rating) not in allowed:
+            raise ValidationError({"rating": "Rating must be in 0.5 steps between 0 and 5."})
+
+    @property
+    def product_id_display(self) -> str:
+        try:
+            return getattr(self.product, "product_id", "") or ""
+        except Exception:
+            return ""
+
+    @property
+    def subcategory_id_display(self) -> str:
+        try:
+            return getattr(self.subcategory, "subcategory_id", "") or ""
+        except Exception:
+            return ""
+        
 class Attribute(models.Model):
     attr_id = models.CharField(primary_key=True, max_length=100)
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="attributes", db_index=True)

@@ -1,21 +1,34 @@
 # views/testimonial_views.py
-
 import json
+import logging
+from decimal import Decimal
 from uuid import uuid4
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Avg, Count, Q
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from .models import Testimonial, Image
+from .models import (
+    Testimonial,
+    Image,
+    Product,
+    SubCategory,
+    ProductTestimonial,
+)
 from .permissions import FrontendOnlyPermission
-from .utilities import save_image  # expects (file_or_base64, alt_text, tags, linked_table, linked_page, linked_id)
+from .utilities import (
+    save_image,
+    _parse_payload,
+    _now,
+)
 
 
+logger = logging.getLogger(__name__)
 # --------------------------
 # Helpers
 # --------------------------
@@ -335,3 +348,282 @@ class EditTestimonialsAPIView(APIView):
 
         # include absolute image URL
         return Response({"success": True, **_serialize_testimonial(obj, request)}, status=status.HTTP_200_OK)
+    
+    
+def _coerce_half_star(value, default=0.0) -> float:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return float(default)
+    v = max(0.0, min(5.0, v))
+    # round to nearest 0.5
+    return round(v * 2) / 2.0
+
+def _one_of_product_or_subcategory(payload):
+    """Return (product, subcategory) ensuring exactly one is provided; both None means error upstream."""
+    product_id = payload.get("product_id")
+    subcategory_id = payload.get("subcategory_id")
+    if bool(product_id) == bool(subcategory_id):
+        # Either both set or both empty -> invalid for creation; for listing we handle elsewhere
+        return None, None
+
+    if product_id:
+        product = get_object_or_404(Product, product_id=product_id)
+        return product, None
+
+    subcategory = get_object_or_404(SubCategory, subcategory_id=subcategory_id)
+    return None, subcategory
+
+def _serialize_testimonial(t: ProductTestimonial):
+    return {
+        "id": str(t.testimonial_id),
+        "name": t.name,
+        "content": t.content or "",
+        "rating": float(t.rating or 0.0),
+        "rating_count": int(t.rating_count or 0),
+        "status": t.status,
+        "created_at": t.created_at.isoformat(),
+        "updated_at": t.updated_at.isoformat(),
+        # For transparency/debug, FE currently doesn’t need these:
+        "product_id": getattr(t.product, "product_id", None),
+        "subcategory_id": getattr(t.subcategory, "subcategory_id", None),
+    }
+
+def _recompute_product_aggregate(product: Product):
+    """
+    Recompute Product.rating and Product.rating_count from APPROVED testimonials only.
+    - rating = half-star rounded average of non-null testimonial.rating
+    - rating_count = number of approved testimonials
+    """
+    if not product:
+        return
+    approved = ProductTestimonial.objects.filter(product=product, status="approved")
+    agg = approved.aggregate(avg=Avg("rating"), cnt=Count("testimonial_id"))
+    avg = float(agg.get("avg") or 0.0)
+    cnt = int(agg.get("cnt") or 0)
+    product.rating = _coerce_half_star(avg, 0.0)
+    product.rating_count = max(0, cnt)
+    product.save(update_fields=["rating", "rating_count"])
+
+
+# -----------------------
+# API Views
+# -----------------------
+
+class ShowProductCommentAPIView(APIView):
+    """
+    POST /api/show-product-comment
+    Body:
+      {
+        "product_id": "P-123" | null,
+        "subcategory_id": "S-123" | null,
+        "include_pending": false,         # default False (only approved)
+        "include_hidden": false,          # default False
+        "limit": 50,                      # optional
+        "offset": 0                       # optional
+      }
+    Returns: list[comment]
+    """
+    permission_classes = [FrontendOnlyPermission]
+
+    def post(self, request):
+        try:
+            data = _parse_payload(request)
+        except Exception:
+            return Response({"error": "Invalid JSON body"}, status=status.HTTP_400_BAD_REQUEST)
+
+        product_id = data.get("product_id")
+        subcategory_id = data.get("subcategory_id")
+        include_pending = bool(data.get("include_pending", False))
+        include_hidden = bool(data.get("include_hidden", False))
+        limit = max(1, min(int(data.get("limit") or 50), 200))
+        offset = max(0, int(data.get("offset") or 0))
+
+        qs = ProductTestimonial.objects.all().order_by("-created_at")
+
+        # Scope to either product or subcategory when provided; if neither provided, return empty (FE always passes one)
+        if product_id and subcategory_id:
+            return Response({"error": "Provide either product_id OR subcategory_id, not both."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if product_id:
+            qs = qs.filter(product__product_id=product_id)
+        elif subcategory_id:
+            qs = qs.filter(subcategory__subcategory_id=subcategory_id)
+        else:
+            # No scope → nothing to show
+            return Response([], status=status.HTTP_200_OK)
+
+        # Visibility rules: default to approved only
+        visible = Q(status="approved")
+        if include_pending:
+            visible |= Q(status="pending")
+        if include_hidden:
+            visible |= Q(status="hidden")
+        qs = qs.filter(visible)
+
+        rows = list(qs[offset: offset + limit])
+        out = [_serialize_testimonial(t) for t in rows]
+        return Response(out, status=status.HTTP_200_OK)
+
+
+class EditProductCommentAPIView(APIView):
+    """
+    POST /api/edit-product-comment
+    Create or update.
+
+    Create (no comment_id):
+      {
+        "name": "...", "email": "...",
+        "content": "...",
+        "rating": 0..5, "rating_count": 1,
+        "status": "pending" | "approved" | "rejected" | "hidden",
+        "product_id": "...",    # exactly one of these required
+        "subcategory_id": "..."
+      }
+
+    Update (with comment_id):
+      {
+        "comment_id": "...",
+        # any of: name, email, content, rating, rating_count, status
+      }
+    """
+    permission_classes = [FrontendOnlyPermission]
+
+    @transaction.atomic
+    def post(self, request):
+        try:
+            data = _parse_payload(request)
+        except Exception:
+            return Response({"error": "Invalid JSON body"}, status=status.HTTP_400_BAD_REQUEST)
+
+        comment_id = data.get("comment_id")
+
+        # ---------------- Create ----------------
+        if not comment_id:
+            # minimal validation
+            name = (data.get("name") or "").strip()
+            email = (data.get("email") or "").strip()
+            content = (data.get("content") or "").strip()
+            if not (name and email and content):
+                return Response({"error": "name, email and content are required."},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            product, subcategory = _one_of_product_or_subcategory(data)
+            if not (product or subcategory):
+                return Response({"error": "Provide exactly one of product_id or subcategory_id."},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            rating = _coerce_half_star(data.get("rating", 0.0), 0.0)
+            rating_count = int(data.get("rating_count") or 1)
+            status_val = data.get("status") or "pending"
+            if status_val not in {"pending", "approved", "rejected", "hidden"}:
+                status_val = "pending"
+
+            t = ProductTestimonial.objects.create(
+                product=product,
+                subcategory=subcategory,
+                name=name[:120],
+                email=email[:254],
+                content=content,
+                rating=rating,
+                rating_count=max(1, rating_count),
+                status=status_val,
+            )
+
+            # If linked to product, recompute aggregates when status is approved
+            if product and status_val == "approved":
+                _recompute_product_aggregate(product)
+
+            return Response({"success": True, "comment": _serialize_testimonial(t)},
+                            status=status.HTTP_200_OK)
+
+        # ---------------- Update ----------------
+        t = get_object_or_404(ProductTestimonial, pk=comment_id)
+
+        # track product before/after for aggregate updates
+        linked_product = t.product
+
+        fields_to_update = []
+        if "name" in data and (data.get("name") or "").strip():
+            t.name = data["name"].strip()[:120]
+            fields_to_update.append("name")
+        if "email" in data and (data.get("email") or "").strip():
+            t.email = data["email"].strip()[:254]
+            fields_to_update.append("email")
+        if "content" in data and (data.get("content") or "").strip():
+            t.content = data["content"]
+            fields_to_update.append("content")
+        if "rating" in data:
+            t.rating = _coerce_half_star(data.get("rating"), t.rating)
+            fields_to_update.append("rating")
+        if "rating_count" in data:
+            try:
+                t.rating_count = max(1, int(data["rating_count"]))
+            except (TypeError, ValueError):
+                pass
+            else:
+                fields_to_update.append("rating_count")
+        if "status" in data:
+            new_status = str(data.get("status") or "pending")
+            if new_status in {"pending", "approved", "rejected", "hidden"}:
+                t.status = new_status
+                fields_to_update.append("status")
+
+        # Optional move between product/subcategory (still exactly one)
+        want_product_id = data.get("product_id")
+        want_subcategory_id = data.get("subcategory_id")
+        if want_product_id or want_subcategory_id:
+            if bool(want_product_id) == bool(want_subcategory_id):
+                return Response({"error": "Provide exactly one of product_id or subcategory_id when re-linking."},
+                                status=status.HTTP_400_BAD_REQUEST)
+            if want_product_id:
+                t.product = get_object_or_404(Product, product_id=want_product_id)
+                t.subcategory = None
+            else:
+                t.subcategory = get_object_or_404(SubCategory, subcategory_id=want_subcategory_id)
+                t.product = None
+            fields_to_update.extend(["product", "subcategory"])
+
+        if fields_to_update:
+            t.save()
+
+        # Recompute product aggregates if:
+        #  - it is linked to a product, AND
+        #  - status or rating changed in a way that affects approved set.
+        # Conservative rule: recompute whenever linked product exists and any update happened.
+        if t.product:
+            _recompute_product_aggregate(t.product)
+        elif linked_product:
+            # Moved off product, recompute old product as well
+            _recompute_product_aggregate(linked_product)
+
+        return Response({"success": True, "comment": _serialize_testimonial(t)},
+                        status=status.HTTP_200_OK)
+
+
+class DeleteProductCommentAPIView(APIView):
+    """
+    POST /api/delete-product-comment
+    Body: { "comment_id": "..." }
+    """
+    permission_classes = [FrontendOnlyPermission]
+
+    @transaction.atomic
+    def post(self, request):
+        try:
+            data = _parse_payload(request)
+        except Exception:
+            return Response({"error": "Invalid JSON body"}, status=status.HTTP_400_BAD_REQUEST)
+
+        cid = data.get("comment_id")
+        if not cid:
+            return Response({"error": "comment_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        t = get_object_or_404(ProductTestimonial, pk=cid)
+        linked_product = t.product
+        t.delete()
+
+        if linked_product:
+            _recompute_product_aggregate(linked_product)
+
+        return Response({"success": True}, status=status.HTTP_200_OK)

@@ -443,6 +443,21 @@ def update_stock_status(inventory):
     inventory.save()
 
 def save_product_attributes(data, product):
+    """
+    Save (replace) product attributes/options safely.
+
+    - If no attributes key is present, do nothing.
+    - If present (even empty list), delete existing rows for this product
+      and re-create from payload.
+    - IMPORTANT: Do NOT blindly reuse client-supplied IDs. Generate new IDs,
+      unless the requested ID is globally unused.
+    """
+    # Presence check (do nothing if entirely absent)
+    has_any_attr_key = any(k in data for k in ("attributes", "custom_attributes", "customAttributes"))
+    if not has_any_attr_key:
+        return
+
+    # Normalize
     attrs = (
         data.get("attributes")
         or data.get("custom_attributes")
@@ -452,6 +467,23 @@ def save_product_attributes(data, product):
     if not isinstance(attrs, list):
         attrs = []
 
+    # Helper: choose a safe, globally-unique attr_id
+    def _safe_attr_id(requested: str | None, prefix: str) -> str:
+        """
+        If 'requested' is provided and unused globally, use it.
+        Otherwise, generate a new unique ID with the given prefix.
+        """
+        if requested:
+            requested = str(requested).strip()
+            if requested and not Attribute.objects.filter(attr_id=requested).exists():
+                return requested
+        # Generate a fresh one
+        while True:
+            candidate = f"{prefix}-{uuid.uuid4().hex[:8].upper()}"
+            if not Attribute.objects.filter(attr_id=candidate).exists():
+                return candidate
+
+    # Replace strategy: wipe current product attributes then reinsert
     Attribute.objects.filter(product=product).delete()
 
     for idx, att in enumerate(attrs):
@@ -459,8 +491,9 @@ def save_product_attributes(data, product):
         if not name:
             continue
 
+        parent_attr_id = _safe_attr_id(att.get("id"), "ATTR")
         parent = Attribute.objects.create(
-            attr_id=att.get("id") or f"ATTR-{uuid.uuid4().hex[:8].upper()}",
+            attr_id=parent_attr_id,
             product=product,
             parent=None,
             name=name,
@@ -472,24 +505,28 @@ def save_product_attributes(data, product):
             if not label:
                 continue
 
+            # price_delta normalization
             try:
                 price_delta = _to_decimal(opt.get("price_delta", 0))
             except Exception:
                 price_delta = Decimal("0")
 
+            # Resolve image (by existing image_id or new base64)
             img_obj = None
             try:
                 if opt.get("image_id"):
                     img_obj = Image.objects.filter(image_id=opt["image_id"]).first()
-                if not img_obj and isinstance(opt.get("image"), str) and opt["image"].startswith("data:image/"):
+
+                img_data = opt.get("image")
+                if not img_obj and isinstance(img_data, str) and img_data.startswith("data:image/"):
                     with transaction.atomic():
                         img_obj = save_image(
-                            opt["image"],
+                            img_data,
                             alt_text=f"{name} - {label}",
                             tags="attribute,option",
                             linked_table="product_attribute",
                             linked_page="product-detail",
-                            linked_id=parent.attr_id,
+                            linked_id=parent.attr_id,  # link to the NEW parent id
                         )
             except (DatabaseError, IntegrityError):
                 logger.exception("DB error while saving attribute image; aborting")
@@ -497,8 +534,11 @@ def save_product_attributes(data, product):
             except Exception:
                 logger.exception("Non-DB error while saving attribute image; skipping image")
 
+            # Safe option id
+            option_attr_id = _safe_attr_id(opt.get("id"), "ATOP")
+
             Attribute.objects.create(
-                attr_id=opt.get("id") or f"ATOP-{uuid.uuid4().hex[:8].upper()}",
+                attr_id=option_attr_id,
                 product=product,
                 parent=parent,
                 label=label,
@@ -737,7 +777,6 @@ class ShowSpecificProductAPIView(APIView):
         }
 
         return Response(response, status=status.HTTP_200_OK)
-
 
 class ShowProductVariantAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
