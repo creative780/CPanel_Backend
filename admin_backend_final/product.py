@@ -4,6 +4,7 @@ import logging
 from decimal import Decimal
 from collections import defaultdict
 from django.db import DatabaseError
+from typing import Optional
 # Django
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -468,7 +469,7 @@ def save_product_attributes(data, product):
         attrs = []
 
     # Helper: choose a safe, globally-unique attr_id
-    def _safe_attr_id(requested: str | None, prefix: str) -> str:
+    def _safe_attr_id(requested: Optional[str], prefix: str) -> str:
         """
         If 'requested' is provided and unused globally, use it.
         Otherwise, generate a new unique ID with the given prefix.
