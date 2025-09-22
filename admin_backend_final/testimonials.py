@@ -374,7 +374,7 @@ def _one_of_product_or_subcategory(payload):
     subcategory = get_object_or_404(SubCategory, subcategory_id=subcategory_id)
     return None, subcategory
 
-def _serialize_testimonial(t: ProductTestimonial):
+def _serialize_product_testimonial(t: ProductTestimonial):
     return {
         "id": str(t.testimonial_id),
         "name": t.name,
@@ -409,7 +409,6 @@ def _recompute_product_aggregate(product: Product):
 # -----------------------
 # API Views
 # -----------------------
-
 class ShowProductCommentAPIView(APIView):
     """
     POST /api/show-product-comment
@@ -462,9 +461,8 @@ class ShowProductCommentAPIView(APIView):
         qs = qs.filter(visible)
 
         rows = list(qs[offset: offset + limit])
-        out = [_serialize_testimonial(t) for t in rows]
+        out = [_serialize_product_testimonial(t) for t in rows]
         return Response(out, status=status.HTTP_200_OK)
-
 
 class EditProductCommentAPIView(APIView):
     """
@@ -534,7 +532,7 @@ class EditProductCommentAPIView(APIView):
             if product and status_val == "approved":
                 _recompute_product_aggregate(product)
 
-            return Response({"success": True, "comment": _serialize_testimonial(t)},
+            return Response({"success": True, "comment": _serialize_product_testimonial(t)},
                             status=status.HTTP_200_OK)
 
         # ---------------- Update ----------------
@@ -597,9 +595,8 @@ class EditProductCommentAPIView(APIView):
             # Moved off product, recompute old product as well
             _recompute_product_aggregate(linked_product)
 
-        return Response({"success": True, "comment": _serialize_testimonial(t)},
+        return Response({"success": True, "comment": _serialize_product_testimonial(t)},
                         status=status.HTTP_200_OK)
-
 
 class DeleteProductCommentAPIView(APIView):
     """

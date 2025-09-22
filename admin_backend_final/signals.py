@@ -4,7 +4,7 @@ from django.utils.timezone import now
 from .models import Admin, AdminRole, AdminRoleMap, Notification, DashboardSnapshot, SiteSettings
 import uuid
 from django.contrib.auth.signals import user_logged_in
-from .models import Product, Orders, BlogPost, Category, SubCategory
+from .models import Product, Orders, BlogPost, Category, SubCategory, ProductTestimonial
 from django.contrib.auth.signals import user_logged_out
 
 
@@ -147,3 +147,41 @@ def notify_logout(sender, request, user, **kwargs):
         created_at=now()
     )
 
+@receiver(post_save, sender=ProductTestimonial)
+def notify_testimonial_created(sender, instance, created, **kwargs):
+    if not created:
+        return  # notify only when a comment is first created
+
+    # We want this notification to live under the dedicated "Product Comments" tab on FE.
+    # Therefore:
+    # - source_table => "product_comment"
+    # - source_id    => comment_id (testimonial_id)
+    # - type         => "comment" (kept for semantics)
+    source_table = "product_comment"
+    source_id = str(instance.testimonial_id)
+
+    # Human-readable target context
+    if instance.product:
+        target_label = f"product {getattr(instance.product, 'title', 'Unknown Product')}"
+    elif instance.subcategory:
+        target_label = f"subcategory {getattr(instance.subcategory, 'name', 'Unknown SubCategory')}"
+    else:
+        target_label = "item"
+
+    message = (
+        f"{instance.name} has commented on the {target_label}\n"
+        f"Comment: {instance.content}"
+    )
+
+    Notification.objects.create(
+        notification_id=str(uuid.uuid4()),
+        type="comment",
+        title="New Comment",
+        message=message,
+        recipient_id="superadmin",
+        recipient_type="admin",
+        source_table=source_table,   # <-- product_comment
+        source_id=source_id,         # <-- comment_id
+        status="unread",
+        created_at=now(),
+    )
