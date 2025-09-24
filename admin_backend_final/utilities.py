@@ -11,6 +11,7 @@ import logging
 from PIL import Image as PILImage
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
+from typing import Optional
 
 # Django
 from django.utils import timezone
@@ -210,7 +211,7 @@ def _safe_fetch(url: str) -> tuple[bytes, str]:
             chunks.append(chunk)
         return b"".join(chunks), content_type
 
-def _infer_ext(url: str, content_type: str, pil_format: str | None) -> str:
+def _infer_ext(url: str, content_type: str, pil_format: Optional[str]) -> str:
     # 1) From Content-Type header
     if content_type in _CONTENT_TYPE_TO_EXT:
         return _CONTENT_TYPE_TO_EXT[content_type]
