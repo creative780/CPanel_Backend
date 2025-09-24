@@ -169,7 +169,10 @@ class AttributeSubCategory(models.Model):
         db_index=True,
     )
 
-    # Option list: each item is {id, name, price_delta?, is_default?, image_data?}
+    # NEW: attribute-level description
+    description = models.TextField(blank=True, default="")
+
+    # Option list: each item is {id, name, price_delta?, is_default?, image_data?, description?}
     values = models.JSONField(default=list, blank=True)
 
     # Scope: empty list means global attribute
@@ -183,19 +186,28 @@ class AttributeSubCategory(models.Model):
         return self.name
 
     def clean(self):
-        # Optional: enforce at least one value
+        # Validate structure
         if not isinstance(self.values, list):
             raise ValueError("values must be a list of option objects")
-        # Validate price_delta and is_default if present
+
         defaults = [v for v in self.values if v.get("is_default")]
         if len(defaults) > 1:
             raise ValueError("Only one option can be marked as default.")
+
+        # Optional: light schema checks
+        for v in self.values:
+            if not isinstance(v, dict):
+                raise ValueError("Each value must be an object.")
+            if "name" in v and not isinstance(v["name"], str):
+                raise ValueError("Option 'name' must be a string if provided.")
+            if "description" in v and not isinstance(v["description"], str):
+                raise ValueError("Option 'description' must be a string if provided.")
 
     @property
     def is_global(self):
         """True if this attribute is available to all subcategories."""
         return len(self.subcategory_ids or []) == 0
-    
+
 # === PRODUCT SYSTEM ===
 class Product(models.Model):
     product_id = models.CharField(primary_key=True, max_length=100)
@@ -415,37 +427,66 @@ class ProductTestimonial(models.Model):
             return getattr(self.subcategory, "subcategory_id", "") or ""
         except Exception:
             return ""
-        
+    
 class Attribute(models.Model):
     attr_id = models.CharField(primary_key=True, max_length=100)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="attributes", db_index=True)
+
+    product = models.ForeignKey(
+        "Product",
+        on_delete=models.CASCADE,
+        related_name="attributes",
+        db_index=True,
+    )
+
     # self-referencing for options
     parent = models.ForeignKey(
         "self",
         on_delete=models.CASCADE,
-        null=True, blank=True,
+        null=True,
+        blank=True,
         related_name="options",
         db_index=True,
     )
-    # attribute-level field
-    name = models.CharField(max_length=255, blank=True, default="")   # used only when parent is NULL
-    # option-level fields
-    label = models.CharField(max_length=255, blank=True, default="")  # used only when parent is not NULL
-    image = models.ForeignKey(Image, on_delete=models.SET_NULL, null=True, blank=True, related_name="attribute_images")
-    price_delta = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    # attribute-level fields (when parent is NULL)
+    name = models.CharField(max_length=255, blank=True, default="")
+
+    # option-level fields (when parent is NOT NULL)
+    label = models.CharField(max_length=255, blank=True, default="")
+    image = models.ForeignKey(
+        "Image",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attribute_images",
+    )
+    price_delta = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
     is_default = models.BooleanField(default=False)
+
+    # NEW: shared description for both attribute and option nodes
+    description = models.TextField(blank=True, default="")
+
     # housekeeping
     order = models.PositiveIntegerField(default=0, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
     class Meta:
         indexes = [
             models.Index(fields=["product", "parent", "order"]),
         ]
         ordering = ["order", "name", "label"]
+
     def is_attribute(self):
         return self.parent_id is None
+
     def is_option(self):
         return self.parent_id is not None
+
     def __str__(self):
         if self.is_attribute():
             return f"[Attribute] {self.name} :: {self.product.title}"
