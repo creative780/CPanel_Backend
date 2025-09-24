@@ -34,7 +34,6 @@ def _ensure_unique_slug(base_slug: str) -> str:
         if not AttributeSubCategory.objects.filter(slug=candidate).exists():
             return candidate
         i += 1
-
 def _normalize_values(values):
     """
     Validate/normalize 'values' list from request.
@@ -42,6 +41,7 @@ def _normalize_values(values):
     - Coerce fields to correct types
     - Ensure at most one default
     - IMPORTANT: do not persist base64 'image_data'; prefer 'image_url'
+    - NEW: support optional 'description' (string) for each option.
     """
     if values is None:
         return ([], "")
@@ -71,10 +71,8 @@ def _normalize_values(values):
         if is_default:
             default_count += 1
 
-        # Prefer a URL. If you still receive image_data (base64), this is the place
-        # to upload it to storage and replace with a URL before persisting.
         image_url = (v.get("image_url") or "").strip()
-        # NOTE: we deliberately ignore any v.get("image_data") here.
+        desc = (v.get("description") or "").strip()  # NEW
 
         item = {
             "id": vid,
@@ -85,6 +83,8 @@ def _normalize_values(values):
             item["price_delta"] = pd
         if image_url:
             item["image_url"] = image_url
+        if desc:
+            item["description"] = desc  # NEW
 
         normalized.append(item)
 
@@ -92,7 +92,6 @@ def _normalize_values(values):
         return ([], "only one option can be marked as default")
 
     return (normalized, "")
-
 
 def _normalize_sub_ids(sub_ids) -> Tuple[List[str], str]:
     if sub_ids is None:
@@ -102,10 +101,10 @@ def _normalize_sub_ids(sub_ids) -> Tuple[List[str], str]:
     out = [str(x).strip() for x in sub_ids if str(x).strip()]
     return (out, "")
 
-
 def _normalize_payload(obj: dict, *, is_create: bool) -> Tuple[dict, str]:
     """
     Map incoming JSON to model fields, validate, and return normalized payload.
+    NEW: pass through 'description' for the attribute itself.
     """
     if not isinstance(obj, dict):
         return ({}, "invalid payload")
@@ -144,17 +143,18 @@ def _normalize_payload(obj: dict, *, is_create: bool) -> Tuple[dict, str]:
         "slug": slug,
         "type": type_,
         "status": status_val,
+        "description": (obj.get("description") or "").strip(),  # NEW
         "values": values,
         "subcategory_ids": sub_ids,  # empty list => global
     }
 
-    # created_at managed by model on create; but if client sends one, ignore safely
     return (normalized, "")
 
 def _serialize_attribute(m: AttributeSubCategory) -> dict:
     """
     Serialize model instance into the exact DTO the frontend expects.
     Ensure we NEVER return huge base64 blobs if old rows contain 'image_data'.
+    NEW: include top-level 'description'.
     """
     clean_values = []
     for val in (m.values or []):
@@ -162,7 +162,6 @@ def _serialize_attribute(m: AttributeSubCategory) -> dict:
             clean = {k: v for k, v in val.items() if k != "image_data"}
             clean_values.append(clean)
         else:
-            # Defensive: keep non-dict entries untouched
             clean_values.append(val)
 
     return {
@@ -171,6 +170,7 @@ def _serialize_attribute(m: AttributeSubCategory) -> dict:
         "slug": m.slug,
         "type": m.type,
         "status": m.status,
+        "description": getattr(m, "description", "") or "",  # NEW
         "values": clean_values,
         "created_at": m.created_at.isoformat(),
         "subcategory_ids": m.subcategory_ids or [],
@@ -203,7 +203,6 @@ class ShowSubcatAttributesAPIView(APIView):
         page_size = min(max(1, page_size), 200)
         offset = (page - 1) * page_size
 
-        # Strip any implicit ordering
         base = AttributeSubCategory.objects.all().order_by()
 
         if sub_id:
@@ -213,7 +212,6 @@ class ShowSubcatAttributesAPIView(APIView):
 
         total = base.count()
 
-        # Page by PK (attribute_id)
         id_page = list(
             base.order_by("attribute_id")
                 .values_list("attribute_id", flat=True)[offset : offset + page_size]
@@ -226,11 +224,13 @@ class ShowSubcatAttributesAPIView(APIView):
             )
 
         objs = AttributeSubCategory.objects.only(
-            "attribute_id", "name", "slug", "type", "status", "values", "created_at", "subcategory_ids"
+            "attribute_id", "name", "slug", "type", "status",
+            "description",               # NEW
+            "values", "created_at", "subcategory_ids"
         ).in_bulk(id_page, field_name="attribute_id")
 
         items = [objs.get(aid) for aid in id_page if aid in objs and objs.get(aid)]
-        items.sort(key=lambda o: (o.name or "").lower())  # Python-side sort
+        items.sort(key=lambda o: (o.name or "").lower())
 
         data = [_serialize_attribute(a) for a in items]
 
@@ -240,76 +240,72 @@ class ShowSubcatAttributesAPIView(APIView):
         )
 
 class SaveSubcatAttributesAPIView(APIView):
-  permission_classes = [FrontendOnlyPermission]
+    permission_classes = [FrontendOnlyPermission]
 
-  @transaction.atomic
-  def post(self, request):
-      try:
-          payload = request.data if isinstance(request.data, dict) else json.loads(request.body.decode("utf-8") or "{}")
-      except Exception:
-          payload = {}
+    @transaction.atomic
+    def post(self, request):
+        try:
+            payload = request.data if isinstance(request.data, dict) else json.loads(request.body.decode("utf-8") or "{}")
+        except Exception:
+            payload = {}
 
-      normalized, err = _normalize_payload(payload, is_create=True)
-      if err:
-          return Response({"error": err}, status=status.HTTP_400_BAD_REQUEST)
+        normalized, err = _normalize_payload(payload, is_create=True)
+        if err:
+            return Response({"error": err}, status=status.HTTP_400_BAD_REQUEST)
 
-      # Create
-      # If slug collides (race), re-ensure
-      if AttributeSubCategory.objects.filter(slug=normalized["slug"]).exists():
-          normalized["slug"] = _ensure_unique_slug(normalized["slug"])
+        # If slug collides (race), re-ensure
+        if AttributeSubCategory.objects.filter(slug=normalized["slug"]).exists():
+            normalized["slug"] = _ensure_unique_slug(normalized["slug"])
 
-      obj = AttributeSubCategory.objects.create(
-          attribute_id=normalized["attribute_id"],
-          name=normalized["name"],
-          slug=normalized["slug"],
-          type=normalized["type"],
-          status=normalized["status"],
-          values=normalized["values"],
-          subcategory_ids=normalized["subcategory_ids"],
-      )
-      return Response(_serialize_attribute(obj), status=status.HTTP_201_CREATED)
-
+        obj = AttributeSubCategory.objects.create(
+            attribute_id=normalized["attribute_id"],
+            name=normalized["name"],
+            slug=normalized["slug"],
+            type=normalized["type"],
+            status=normalized["status"],
+            description=normalized["description"],  # NEW
+            values=normalized["values"],
+            subcategory_ids=normalized["subcategory_ids"],
+        )
+        return Response(_serialize_attribute(obj), status=status.HTTP_201_CREATED)
 
 class EditSubcatAttributesAPIView(APIView):
-  permission_classes = [FrontendOnlyPermission]
+    permission_classes = [FrontendOnlyPermission]
 
-  @transaction.atomic
-  def put(self, request):
-      try:
-          payload = request.data if isinstance(request.data, dict) else json.loads(request.body.decode("utf-8") or "{}")
-      except Exception:
-          payload = {}
+    @transaction.atomic
+    def put(self, request):
+        try:
+            payload = request.data if isinstance(request.data, dict) else json.loads(request.body.decode("utf-8") or "{}")
+        except Exception:
+            payload = {}
 
-      # Require ID to edit
-      obj_id = str(payload.get("id") or "").strip()
-      if not obj_id:
-          return Response({"error": "id is required for edit"}, status=status.HTTP_400_BAD_REQUEST)
+        obj_id = str(payload.get("id") or "").strip()
+        if not obj_id:
+            return Response({"error": "id is required for edit"}, status=status.HTTP_400_BAD_REQUEST)
 
-      try:
-          obj = AttributeSubCategory.objects.get(attribute_id=obj_id)
-      except AttributeSubCategory.DoesNotExist:
-          return Response({"error": "Attribute not found"}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            obj = AttributeSubCategory.objects.get(attribute_id=obj_id)
+        except AttributeSubCategory.DoesNotExist:
+            return Response({"error": "Attribute not found"}, status=status.HTTP_404_NOT_FOUND)
 
-      # Normalize (we treat it like a full-document update)
-      normalized, err = _normalize_payload(payload, is_create=False)
-      if err:
-          return Response({"error": err}, status=status.HTTP_400_BAD_REQUEST)
+        normalized, err = _normalize_payload(payload, is_create=False)
+        if err:
+            return Response({"error": err}, status=status.HTTP_400_BAD_REQUEST)
 
-      # If slug changed, guard uniqueness
-      if normalized["slug"] != obj.slug and AttributeSubCategory.objects.exclude(attribute_id=obj.attribute_id).filter(slug=normalized["slug"]).exists():
-          normalized["slug"] = _ensure_unique_slug(normalized["slug"])
+        if normalized["slug"] != obj.slug and AttributeSubCategory.objects.exclude(attribute_id=obj.attribute_id).filter(slug=normalized["slug"]).exists():
+            normalized["slug"] = _ensure_unique_slug(normalized["slug"])
 
-      obj.name = normalized["name"]
-      obj.slug = normalized["slug"]
-      obj.type = normalized["type"]
-      obj.status = normalized["status"]
-      obj.values = normalized["values"]
-      obj.subcategory_ids = normalized["subcategory_ids"]
-      obj.updated_at = timezone.now()
-      obj.save()
+        obj.name = normalized["name"]
+        obj.slug = normalized["slug"]
+        obj.type = normalized["type"]
+        obj.status = normalized["status"]
+        obj.description = normalized["description"]  # NEW
+        obj.values = normalized["values"]
+        obj.subcategory_ids = normalized["subcategory_ids"]
+        obj.updated_at = timezone.now()
+        obj.save()
 
-      return Response(_serialize_attribute(obj), status=status.HTTP_200_OK)
-
+        return Response(_serialize_attribute(obj), status=status.HTTP_200_OK)
 
 class DeleteSubcatAttributesAPIView(APIView):
   permission_classes = [FrontendOnlyPermission]

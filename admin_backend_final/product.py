@@ -452,6 +452,7 @@ def save_product_attributes(data, product):
       and re-create from payload.
     - IMPORTANT: Do NOT blindly reuse client-supplied IDs. Generate new IDs,
       unless the requested ID is globally unused.
+    - NEW: supports 'description' at attribute (parent) and option levels.
     """
     # Presence check (do nothing if entirely absent)
     has_any_attr_key = any(k in data for k in ("attributes", "custom_attributes", "customAttributes"))
@@ -493,11 +494,14 @@ def save_product_attributes(data, product):
             continue
 
         parent_attr_id = _safe_attr_id(att.get("id"), "ATTR")
+        parent_description = (att.get("description") or "").strip()
+
         parent = Attribute.objects.create(
             attr_id=parent_attr_id,
             product=product,
             parent=None,
             name=name,
+            description=parent_description,   # NEW
             order=idx,
         )
 
@@ -537,12 +541,14 @@ def save_product_attributes(data, product):
 
             # Safe option id
             option_attr_id = _safe_attr_id(opt.get("id"), "ATOP")
+            option_description = (opt.get("description") or "").strip()
 
             Attribute.objects.create(
                 attr_id=option_attr_id,
                 product=product,
                 parent=parent,
                 label=label,
+                description=option_description,   # NEW
                 image=img_obj,
                 price_delta=price_delta,
                 is_default=bool(opt.get("is_default")),
@@ -1015,6 +1021,7 @@ class ShowProductAttributesAPIView(APIView):
                 opts.append({
                     "id": opt.attr_id,
                     "label": opt.label,
+                    "description": getattr(opt, "description", "") or "",  # NEW
                     "image_id": getattr(opt.image, "image_id", None),
                     "image_url": (img_dict or {}).get("url"),
                     "price_delta": float(opt.price_delta) if opt.price_delta is not None else 0.0,
@@ -1023,6 +1030,7 @@ class ShowProductAttributesAPIView(APIView):
             out.append({
                 "id": p.attr_id,
                 "name": p.name,
+                "description": getattr(p, "description", "") or "",  # NEW
                 "options": opts,
             })
 
