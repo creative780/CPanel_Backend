@@ -9,6 +9,8 @@ from io import BytesIO
 import logging
 # Third-party
 from PIL import Image as PILImage
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
 
 # Django
 from django.utils import timezone
@@ -159,25 +161,116 @@ def generate_admin_id(name: str, role_name: str, attempt=1) -> str:
 
     return f"{base_id}-{i:03d}"
 
-
 logger = logging.getLogger(__name__)
+
+# Optional: cap remote downloads to prevent abuse (5 MB here)
+_MAX_DOWNLOAD_BYTES = 5 * 1024 * 1024
+_DEFAULT_TIMEOUT = 10  # seconds
+
+_CONTENT_TYPE_TO_EXT = {
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+    "image/bmp": ".bmp",
+    "image/tiff": ".tiff",
+    "image/x-icon": ".ico",
+    "image/svg+xml": ".svg",
+}
+
+def _is_data_url(s: str) -> bool:
+    return s.startswith("data:image/")
+
+def _is_http_url(s: str) -> bool:
+    try:
+        p = urlparse(s)
+        return p.scheme in ("http", "https") and bool(p.netloc)
+    except Exception:
+        return False
+
+def _safe_fetch(url: str) -> tuple[bytes, str]:
+    """
+    Fetch URL with a size cap and timeout. Returns (bytes, content_type).
+    Raises on HTTP or IO errors.
+    """
+    req = Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; ImageFetcher/1.0)"})
+    with urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+        content_type = resp.headers.get("Content-Type", "").split(";")[0].strip().lower()
+        # Read with cap
+        chunks = []
+        bytes_read = 0
+        while True:
+            chunk = resp.read(64 * 1024)  # 64 KB
+            if not chunk:
+                break
+            bytes_read += len(chunk)
+            if bytes_read > _MAX_DOWNLOAD_BYTES:
+                raise ValueError("Remote image exceeds maximum allowed size")
+            chunks.append(chunk)
+        return b"".join(chunks), content_type
+
+def _infer_ext(url: str, content_type: str, pil_format: str | None) -> str:
+    # 1) From Content-Type header
+    if content_type in _CONTENT_TYPE_TO_EXT:
+        return _CONTENT_TYPE_TO_EXT[content_type]
+    # 2) From URL path
+    path = urlparse(url).path.lower()
+    _, ext = os.path.splitext(path)
+    if ext in {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".ico", ".svg"}:
+        return ext
+    # 3) From PIL format
+    if pil_format:
+        fmt = pil_format.lower()
+        mapping = {
+            "jpeg": ".jpg",
+            "png": ".png",
+            "webp": ".webp",
+            "gif": ".gif",
+            "bmp": ".bmp",
+            "tiff": ".tiff",
+            "ico": ".ico",
+            "svg": ".svg",  # unlikely via PIL
+        }
+        return mapping.get(fmt, ".png")
+    # 4) Fallback
+    return ".png"
+
 def save_image(file_or_base64, alt_text="Alt-text", tags="", linked_table="", linked_page="", linked_id=""):
     try:
-        if isinstance(file_or_base64, str) and file_or_base64.startswith("data:image/"):
+        # --- CASE 1: Data URL (base64) ---
+        if isinstance(file_or_base64, str) and _is_data_url(file_or_base64):
             header, encoded = file_or_base64.split(",", 1)
             file_ext = header.split("/")[1].split(";")[0]
             image_data = base64.b64decode(encoded)
-            image = PILImage.open(BytesIO(image_data))
-            width, height = image.size
+            img = PILImage.open(BytesIO(image_data))
+            width, height = img.size
             filename = f"{uuid.uuid4()}.{file_ext}"
             content_file = ContentFile(image_data, name=filename)
             image_type = f".{file_ext}"
+
+        # --- CASE 2: Remote URL ---
+        elif isinstance(file_or_base64, str) and _is_http_url(file_or_base64):
+            url = file_or_base64
+            blob, content_type = _safe_fetch(url)
+            # Validate it’s an image by trying to open via PIL
+            bio = BytesIO(blob)
+            img = PILImage.open(bio)
+            img.load()  # force decode to catch truncated files early
+            width, height = img.size
+            image_ext = _infer_ext(url, content_type, img.format)
+            filename = f"{uuid.uuid4()}{image_ext}"
+            content_file = ContentFile(blob, name=filename)
+            image_type = image_ext
+
+        # --- CASE 3: File-like / In-memory upload ---
         else:
-            image = PILImage.open(file_or_base64)
-            width, height = image.size
+            img = PILImage.open(file_or_base64)
+            img.load()
+            width, height = img.size
             filename = getattr(file_or_base64, "name", f"{uuid.uuid4()}.png")
             content_file = file_or_base64
-            image_type = os.path.splitext(filename)[-1].lower()
+            image_type = os.path.splitext(filename)[-1].lower() or ".png"
 
         parsed_tags = [tag.strip() for tag in tags.split(",")] if tags else []
 
@@ -193,18 +286,19 @@ def save_image(file_or_base64, alt_text="Alt-text", tags="", linked_table="", li
             linked_id=linked_id,
             created_at=timezone.now(),
         )
-        new_image.image_file.save(filename, content_file)  # can hit storage/db
-        new_image.save()                                   # can raise DB errors
+        # These can raise storage/DB errors – let them propagate to the outer except
+        new_image.image_file.save(filename, content_file)
+        new_image.save()
         return new_image
 
     except (IntegrityError, DatabaseError):
-        # Critical: propagate DB/constraint/storage-backed DB failures to abort the atomic tx
+        # DB/storage-backed failures: bubble up to abort transaction
         raise
     except Exception as e:
-        # Non-DB hiccups are loggable without breaking the whole request
+        # Non-DB hiccups (e.g., network error, invalid image) should not kill the whole request
         logger.exception("Image save error (non-DB): %s", e)
         return None
-    
+
 class GenerateProductIdAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
