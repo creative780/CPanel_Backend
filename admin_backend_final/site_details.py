@@ -9,11 +9,12 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from .models import SiteBranding, Image
+from typing import Optional
 from .permissions import FrontendOnlyPermission
 from .utilities import format_image_object
 from .utilities import save_image  # <- you provided this
 
-def _abs_media_url(request, rel_or_abs: str | None) -> str:
+def _abs_media_url(request, rel_or_abs: Optional[str]) -> str:
     if not rel_or_abs:
         return ""
     # already absolute?
@@ -43,7 +44,7 @@ def _active_branding():
     )
     return branding
 
-def _delete_image_if_owned(img: Image | None, kind: str, branding_id: str):
+def _delete_image_if_owned(img: Optional[Image], kind: str, branding_id: str):
     """
     Delete an Image row only if it belongs to this branding linkage.
     Prevents accidental deletion of shared assets.
