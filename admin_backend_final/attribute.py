@@ -13,7 +13,7 @@ from django.utils.text import slugify
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from typing import Optional
 from .models import AttributeSubCategory  # <- model added earlier
 from .permissions import FrontendOnlyPermission
 
@@ -21,7 +21,7 @@ from .permissions import FrontendOnlyPermission
 # ------------------------------
 # Helpers
 # ------------------------------
-def _ensure_unique_slug(base_slug: str) -> str:
+def _ensure_unique_slug(base_slug: Optional[str]) -> str:
     """
     Ensure slug uniqueness across AttributeSubCategory by suffixing -2, -3, ...
     """
@@ -34,15 +34,8 @@ def _ensure_unique_slug(base_slug: str) -> str:
         if not AttributeSubCategory.objects.filter(slug=candidate).exists():
             return candidate
         i += 1
+
 def _normalize_values(values):
-    """
-    Validate/normalize 'values' list from request.
-    - Ensure it’s a list of dicts
-    - Coerce fields to correct types
-    - Ensure at most one default
-    - IMPORTANT: do not persist base64 'image_data'; prefer 'image_url'
-    - NEW: support optional 'description' (string) for each option.
-    """
     if values is None:
         return ([], "")
     if not isinstance(values, list):
@@ -72,7 +65,8 @@ def _normalize_values(values):
             default_count += 1
 
         image_url = (v.get("image_url") or "").strip()
-        desc = (v.get("description") or "").strip()  # NEW
+        image_id  = (v.get("image_id") or "").strip()   # ✅ new
+        desc = (v.get("description") or "").strip()
 
         item = {
             "id": vid,
@@ -83,8 +77,10 @@ def _normalize_values(values):
             item["price_delta"] = pd
         if image_url:
             item["image_url"] = image_url
+        if image_id:
+            item["image_id"] = image_id                 # ✅ persist
         if desc:
-            item["description"] = desc  # NEW
+            item["description"] = desc
 
         normalized.append(item)
 
@@ -151,14 +147,10 @@ def _normalize_payload(obj: dict, *, is_create: bool) -> Tuple[dict, str]:
     return (normalized, "")
 
 def _serialize_attribute(m: AttributeSubCategory) -> dict:
-    """
-    Serialize model instance into the exact DTO the frontend expects.
-    Ensure we NEVER return huge base64 blobs if old rows contain 'image_data'.
-    NEW: include top-level 'description'.
-    """
     clean_values = []
     for val in (m.values or []):
         if isinstance(val, dict):
+            # strip only image_data, leave image_id and image_url
             clean = {k: v for k, v in val.items() if k != "image_data"}
             clean_values.append(clean)
         else:
@@ -170,7 +162,7 @@ def _serialize_attribute(m: AttributeSubCategory) -> dict:
         "slug": m.slug,
         "type": m.type,
         "status": m.status,
-        "description": getattr(m, "description", "") or "",  # NEW
+        "description": getattr(m, "description", "") or "",
         "values": clean_values,
         "created_at": m.created_at.isoformat(),
         "subcategory_ids": m.subcategory_ids or [],

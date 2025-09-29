@@ -450,16 +450,27 @@ def save_product_attributes(data, product):
     - If no attributes key is present, do nothing.
     - If present (even empty list), delete existing rows for this product
       and re-create from payload.
-    - IMPORTANT: Do NOT blindly reuse client-supplied IDs. Generate new IDs,
-      unless the requested ID is globally unused.
-    - NEW: supports 'description' at attribute (parent) and option levels.
+    - Do NOT blindly reuse client-supplied IDs. Generate new IDs unless unused.
+    - Supports 'description' at attribute (parent) and option levels.
+    - Option images: prefer existing image_id; else accept base64 **or HTTP(S) URL**.
     """
+    from decimal import Decimal, InvalidOperation
+
+    def _is_http_url(s: str) -> bool:
+        s = (s or "").lower()
+        return s.startswith("http://") or s.startswith("https://")
+
+    def _is_data_url(s: str) -> bool:
+        return isinstance(s, str) and s.startswith("data:image/")
+
     # Presence check (do nothing if entirely absent)
-    has_any_attr_key = any(k in data for k in ("attributes", "custom_attributes", "customAttributes"))
+    has_any_attr_key = any(
+        k in data for k in ("attributes", "custom_attributes", "customAttributes")
+    )
     if not has_any_attr_key:
         return
 
-    # Normalize
+    # Normalize incoming list
     attrs = (
         data.get("attributes")
         or data.get("custom_attributes")
@@ -470,18 +481,14 @@ def save_product_attributes(data, product):
         attrs = []
 
     # Helper: choose a safe, globally-unique attr_id
-    def _safe_attr_id(requested: Optional[str], prefix: str) -> str:
-        """
-        If 'requested' is provided and unused globally, use it.
-        Otherwise, generate a new unique ID with the given prefix.
-        """
+    def _safe_attr_id(requested, prefix):
         if requested:
             requested = str(requested).strip()
             if requested and not Attribute.objects.filter(attr_id=requested).exists():
                 return requested
-        # Generate a fresh one
+        import uuid as _uuid
         while True:
-            candidate = f"{prefix}-{uuid.uuid4().hex[:8].upper()}"
+            candidate = f"{prefix}-{_uuid.uuid4().hex[:8].upper()}"
             if not Attribute.objects.filter(attr_id=candidate).exists():
                 return candidate
 
@@ -501,54 +508,92 @@ def save_product_attributes(data, product):
             product=product,
             parent=None,
             name=name,
-            description=parent_description,   # NEW
+            description=parent_description,
             order=idx,
         )
 
+        # Options
         for o_idx, opt in enumerate(att.get("options") or []):
             label = (opt.get("label") or "").strip()
             if not label:
                 continue
 
-            # price_delta normalization
+            # Safe option id
+            option_attr_id = _safe_attr_id(opt.get("id"), "OPT")
+
+            # Description
+            option_description = (opt.get("description") or "").strip()
+
+            # price_delta normalization (Decimal-friendly)
+            price_delta = Decimal("0")
+            raw_pd = opt.get("price_delta", 0)
             try:
-                price_delta = _to_decimal(opt.get("price_delta", 0))
-            except Exception:
+                if raw_pd not in (None, ""):
+                    price_delta = (
+                        raw_pd if isinstance(raw_pd, Decimal) else Decimal(str(raw_pd))
+                    )
+            except (InvalidOperation, TypeError, ValueError):
                 price_delta = Decimal("0")
 
-            # Resolve image (by existing image_id or new base64)
+            # Resolve image in this order:
+            # 1) image_id -> Image row
+            # 2) image (base64 OR http url) -> save_image(...)
+            # 3) image_url/_image_preview (http url) -> save_image(...)
             img_obj = None
             try:
-                if opt.get("image_id"):
-                    img_obj = Image.objects.filter(image_id=opt["image_id"]).first()
+                image_id = opt.get("image_id")
+                if image_id:
+                    img_obj = Image.objects.filter(image_id=image_id).first()
 
+                # accept base64 OR http(s) URL in "image"
                 img_data = opt.get("image")
-                if not img_obj and isinstance(img_data, str) and img_data.startswith("data:image/"):
+                if not img_obj and isinstance(img_data, str) and ( _is_data_url(img_data) or _is_http_url(img_data) ):
                     with transaction.atomic():
-                        img_obj = save_image(
+                        saved = save_image(
                             img_data,
                             alt_text=f"{name} - {label}",
                             tags="attribute,option",
                             linked_table="product_attribute",
                             linked_page="product-detail",
-                            linked_id=parent.attr_id,  # link to the NEW parent id
+                            linked_id=parent.attr_id,
                         )
+                        if hasattr(saved, "pk"):
+                            img_obj = saved
+                        elif isinstance(saved, dict) and saved.get("image_id"):
+                            img_obj = Image.objects.filter(image_id=saved["image_id"]).first()
+
+                # fallback to explicit image_url or FE preview field
+                if not img_obj:
+                    img_url = opt.get("image_url") or opt.get("_image_preview")
+                    if isinstance(img_url, str) and _is_http_url(img_url):
+                        with transaction.atomic():
+                            saved = save_image(
+                                img_url,
+                                alt_text=f"{name} - {label}",
+                                tags="attribute,option",
+                                linked_table="product_attribute",
+                                linked_page="product-detail",
+                                linked_id=parent.attr_id,
+                            )
+                            if hasattr(saved, "pk"):
+                                img_obj = saved
+                            elif isinstance(saved, dict) and saved.get("image_id"):
+                                img_obj = Image.objects.filter(image_id=saved["image_id"]).first()
+
             except (DatabaseError, IntegrityError):
                 logger.exception("DB error while saving attribute image; aborting")
                 raise
             except Exception:
                 logger.exception("Non-DB error while saving attribute image; skipping image")
+                img_obj = None
 
-            # Safe option id
-            option_attr_id = _safe_attr_id(opt.get("id"), "ATOP")
-            option_description = (opt.get("description") or "").strip()
-
+            # Create option row
             Attribute.objects.create(
                 attr_id=option_attr_id,
                 product=product,
                 parent=parent,
                 label=label,
-                description=option_description,   # NEW
+                description=option_description,
                 image=img_obj,
                 price_delta=price_delta,
                 is_default=bool(opt.get("is_default")),
@@ -601,7 +646,6 @@ class SaveProductAPIView(APIView):
         except Exception as e:
             logger.exception("SaveProduct failed")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class DeleteProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
@@ -1017,20 +1061,39 @@ class ShowProductAttributesAPIView(APIView):
                 if opt.attr_id in seen_opt_ids:
                     continue
                 seen_opt_ids.add(opt.attr_id)
-                img_dict = format_image_object(opt.image, request=request) if getattr(opt, "image", None) else None
+
+                # Build URL directly from Image model
+                image_id = None
+                image_url = None
+                img = getattr(opt, "image", None)
+                if img:
+                    image_id = getattr(img, "image_id", None)
+                    try:
+                        rel_url = getattr(img, "url", None)  # Image.url @property
+                        if rel_url:
+                            # Make absolute for the frontend
+                            image_url = (
+                                request.build_absolute_uri(rel_url)
+                                if isinstance(rel_url, str) and rel_url.startswith("/")
+                                else rel_url
+                            )
+                    except Exception:
+                        image_url = None
+
                 opts.append({
                     "id": opt.attr_id,
                     "label": opt.label,
-                    "description": getattr(opt, "description", "") or "",  # NEW
-                    "image_id": getattr(opt.image, "image_id", None),
-                    "image_url": (img_dict or {}).get("url"),
+                    "description": getattr(opt, "description", "") or "",
+                    "image_id": image_id,
+                    "image_url": image_url,
                     "price_delta": float(opt.price_delta) if opt.price_delta is not None else 0.0,
                     "is_default": bool(opt.is_default),
                 })
+
             out.append({
                 "id": p.attr_id,
                 "name": p.name,
-                "description": getattr(p, "description", "") or "",  # NEW
+                "description": getattr(p, "description", "") or "",
                 "options": opts,
             })
 
