@@ -1,5 +1,5 @@
 from django.urls import path
-from  . import views, utilities, category, order_cart, product, home_page, blog, testimonials, attribute
+from  . import views, utilities, category, order_cart, product, home_page, blog, testimonials, attribute, site_details
 from . import chat
 urlpatterns = [
     path('save-image/', utilities.SaveImageAPIView.as_view(), name='save_image'),
@@ -75,5 +75,13 @@ urlpatterns = [
     path("save-subcat-attributes/", attribute.SaveSubcatAttributesAPIView.as_view(), name="save-subcat-attributes"),
     path("edit-subcat-attributes/", attribute.EditSubcatAttributesAPIView.as_view(), name="edit-subcat-attributes"),
     path("delete-subcat-attributes/", attribute.DeleteSubcatAttributesAPIView.as_view(), name="delete-subcat-attributes"),
-
+    path("save-favicon/", site_details.SaveFavIconAPIView.as_view(), name="save_favicon"),
+    path("save-logo/", site_details.SaveLogoAPIView.as_view(), name="save_logo"),
+    path("save-sitetitle-details/", site_details.SaveSiteTitleAPIView.as_view(), name="save_sitetitle_details"),
+    path("show-favicon/", site_details.ShowFavIconAPIView.as_view(), name="show_favicon"),
+    path("show-logo/", site_details.ShowLogoAPIView.as_view(), name="show_logo"),
+    path("show-sitetitle-details/", site_details.ShowSiteTitleAPIView.as_view(), name="show_sitetitle_details"),
+    path("delete-favicon/", site_details.DeleteFavIconAPIView.as_view(), name="delete_favicon"),
+    path("delete-logo/", site_details.DeleteLogoAPIView.as_view(), name="delete_logo"),
+    path("delete-sitetitle-details/", site_details.DeleteSiteTitleAPIView.as_view(), name="delete_sitetitle_details"),
 ]

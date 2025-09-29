@@ -11,7 +11,7 @@ from .models import (
     DeletedItemsCache, SiteSettings, DashboardSnapshot,
     ProductImage, Attribute, AttributeSubCategory,
     FirstCarousel, SecondCarousel, FirstCarouselImage, SecondCarouselImage,
-    Testimonial, ProductTestimonial
+    Testimonial, ProductTestimonial, SiteBranding
 )
 
 admin.site.register(User)
@@ -66,3 +66,4 @@ admin.site.register(SecondCarouselImage)
 
 admin.site.register(Testimonial)
 admin.site.register(AttributeSubCategory)
+admin.site.register(SiteBranding)
