@@ -1,5 +1,6 @@
 # Standard Library
-from decimal import InvalidOperation
+from decimal import Decimal, InvalidOperation
+from typing import Optional, Tuple
 import os
 import re
 import json
@@ -189,7 +190,7 @@ def _is_http_url(s: str) -> bool:
     except Exception:
         return False
 
-def _safe_fetch(url: str) -> tuple[bytes, str]:
+def _safe_fetch(url: str) -> Tuple[bytes, str]:
     """
     Fetch URL with a size cap and timeout. Returns (bytes, content_type).
     Raises on HTTP or IO errors.
@@ -210,7 +211,7 @@ def _safe_fetch(url: str) -> tuple[bytes, str]:
             chunks.append(chunk)
         return b"".join(chunks), content_type
 
-def _infer_ext(url: str, content_type: str, pil_format: str | None) -> str:
+def _infer_ext(url: str, content_type: str, pil_format: Optional[str]) -> str:
     # 1) From Content-Type header
     if content_type in _CONTENT_TYPE_TO_EXT:
         return _CONTENT_TYPE_TO_EXT[content_type]
