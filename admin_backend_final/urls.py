@@ -1,5 +1,5 @@
 from django.urls import path
-from  . import views, utilities, category, order_cart, product, home_page, blog, testimonials, attribute, site_details
+from  . import views, utilities, category, order_cart, product, home_page, blog, testimonials, attribute, site_details, callback
 from . import chat
 urlpatterns = [
     path('save-image/', utilities.SaveImageAPIView.as_view(), name='save_image'),
@@ -24,6 +24,7 @@ urlpatterns = [
     path('show_product_shipping_info/', product.ShowProductShippingInfoAPIView.as_view(), name="show_product_shipping_info"),
     path('show_product_other_details/', product.ShowProductOtherDetailsAPIView.as_view(), name="show_product_other_details"),
     path('show_product_variants/', product.ShowVariantCombinationsAPIView.as_view(), name="show_product_variants"),
+    path('show-product-cards/', product.ShowProductCardAPIView.as_view(), name='show_product_cards'),
     path('set-product-thumbnail/', product.SetProductThumbnailAPIView.as_view()),
     path('edit-product/',product.EditProductAPIView.as_view(), name="edit_product"),
     path("update-product-order/", product.UpdateProductOrderAPIView.as_view(), name="update-product-order"),
@@ -84,4 +85,9 @@ urlpatterns = [
     path("delete-favicon/", site_details.DeleteFavIconAPIView.as_view(), name="delete_favicon"),
     path("delete-logo/", site_details.DeleteLogoAPIView.as_view(), name="delete_logo"),
     path("delete-sitetitle-details/", site_details.DeleteSiteTitleAPIView.as_view(), name="delete_sitetitle_details"),
+    path("save-callback/", callback.SaveCallbackAPIView.as_view(), name="save-callback"),
+    path("edit-callback/", callback.EditCallbackAPIView.as_view(), name="edit-callback"),
+    path("delete-callback/", callback.DeleteCallbackAPIView.as_view(), name="delete-callback"),
+    path("show-specific-callback/", callback.ShowSpecificCallbackAPIView.as_view(), name="show-specific-callback"),
+    path("show-all-callback/", callback.ShowAllCallbackAPIView.as_view(), name="show-all-callback"),
 ]
