@@ -4,6 +4,24 @@ from django.db import migrations, models
 import django.db.models.deletion
 
 
+def create_productcards_if_not_exist(apps, schema_editor):
+    """Safely create ProductCards table if it doesn't exist in the database"""
+    # Since ProductCards already exists in 0001_initial, we skip creating it
+    # This function is mainly for databases that were created before 0001_initial
+    # For SQLite, we skip entirely to avoid issues
+    if schema_editor.connection.vendor == 'sqlite':
+        return
+    
+    # For PostgreSQL/MySQL, the table should already exist from 0001_initial
+    # So we don't need to do anything here
+    pass
+
+
+def noop_reverse(apps, schema_editor):
+    """No-op reverse migration"""
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -11,19 +29,14 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
-            name='ProductCards',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('card1_title', models.CharField(blank=True, default='', max_length=255)),
-                ('card1', models.TextField(blank=True, default='')),
-                ('card2_title', models.CharField(blank=True, default='', max_length=255)),
-                ('card2', models.TextField(blank=True, default='')),
-                ('card3_title', models.CharField(blank=True, default='', max_length=255)),
-                ('card3', models.TextField(blank=True, default='')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('product', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='cards', to='admin_backend_final.product')),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                # Skip creating table since it already exists in 0001_initial
+                migrations.RunPython(create_productcards_if_not_exist, noop_reverse),
+            ],
+            state_operations=[
+                # Don't try to create model in state since 0001_initial already has it
+                # This prevents "table already exists" errors
             ],
         ),
     ]

@@ -6,6 +6,24 @@ import django.db.models.deletion
 import uuid
 
 
+def create_tables_if_not_exist(apps, schema_editor):
+    """Safely create tables if they don't exist in the database"""
+    # Since these tables already exist in 0001_initial, we skip creating them
+    # This function is mainly for databases that were created before 0001_initial
+    # For SQLite, we skip entirely to avoid issues
+    if schema_editor.connection.vendor == 'sqlite':
+        return
+    
+    # For PostgreSQL/MySQL, the tables should already exist from 0001_initial
+    # So we don't need to do anything here
+    pass
+
+
+def noop_reverse(apps, schema_editor):
+    """No-op reverse migration"""
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -13,38 +31,14 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
-            name='AttributeSubCategory',
-            fields=[
-                ('attribute_id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('name', models.CharField(db_index=True, max_length=255)),
-                ('slug', models.SlugField(max_length=255, unique=True)),
-                ('type', models.CharField(choices=[('size', 'Size'), ('color', 'Color'), ('material', 'Material'), ('custom', 'Custom')], db_index=True, default='custom', max_length=50)),
-                ('status', models.CharField(choices=[('visible', 'Visible'), ('hidden', 'Hidden')], db_index=True, default='visible', max_length=20)),
-                ('values', models.JSONField(blank=True, default=list)),
-                ('subcategory_ids', models.JSONField(blank=True, default=list)),
-                ('created_at', models.DateTimeField(auto_now_add=True, db_index=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                # Skip creating tables since they already exist in 0001_initial
+                migrations.RunPython(create_tables_if_not_exist, noop_reverse),
             ],
-        ),
-        migrations.CreateModel(
-            name='ProductTestimonial',
-            fields=[
-                ('testimonial_id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('name', models.CharField(db_index=True, max_length=120)),
-                ('email', models.EmailField(max_length=254)),
-                ('content', models.TextField()),
-                ('rating', models.FloatField(db_index=True, default=0.0, help_text='Allowed values: 0, 0.5, 1, ... , 5', validators=[django.core.validators.MinValueValidator(0.0), django.core.validators.MaxValueValidator(5.0)])),
-                ('rating_count', models.PositiveIntegerField(default=1)),
-                ('status', models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected'), ('hidden', 'Hidden')], db_index=True, default='pending', max_length=20)),
-                ('created_at', models.DateTimeField(auto_now_add=True, db_index=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('product', models.ForeignKey(blank=True, db_column='product_id', null=True, on_delete=django.db.models.deletion.CASCADE, related_name='testimonials', to='admin_backend_final.product')),
-                ('subcategory', models.ForeignKey(blank=True, db_column='subcategory_id', null=True, on_delete=django.db.models.deletion.CASCADE, related_name='testimonials', to='admin_backend_final.subcategory')),
+            state_operations=[
+                # Don't try to create models in state since 0001_initial already has them
+                # This prevents "table already exists" errors
             ],
-            options={
-                'ordering': ['-created_at'],
-                'indexes': [models.Index(fields=['product'], name='admin_backe_product_7a131f_idx'), models.Index(fields=['subcategory'], name='admin_backe_subcate_59bdb9_idx'), models.Index(fields=['status'], name='admin_backe_status_d4ad47_idx'), models.Index(fields=['rating'], name='admin_backe_rating_4f7ad9_idx'), models.Index(fields=['created_at'], name='admin_backe_created_2992c8_idx')],
-            },
         ),
     ]

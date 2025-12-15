@@ -3,6 +3,81 @@
 from django.db import migrations, models
 
 
+def add_fields_if_not_exist(apps, schema_editor):
+    """Safely add fields to database if they don't exist"""
+    # Note: This is primarily for databases that already have these columns
+    # Since 0001_initial already has these fields, we skip adding them to state
+    # but ensure they exist in the database for older databases
+    
+    # For SQLite, we can't easily check/add columns, so we skip
+    if schema_editor.connection.vendor == 'sqlite':
+        return
+    
+    with schema_editor.connection.cursor() as cursor:
+        # Check and add device_uuid to orders if needed
+        orders_table = 'admin_backend_final_orders'
+        if schema_editor.connection.vendor == 'postgresql':
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name=%s AND column_name='device_uuid'
+            """, [orders_table])
+            if not cursor.fetchone():
+                cursor.execute(f'ALTER TABLE {orders_table} ADD COLUMN device_uuid VARCHAR(100) NULL')
+        elif schema_editor.connection.vendor == 'mysql':
+            cursor.execute("""
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA=DATABASE() 
+                AND TABLE_NAME=%s AND COLUMN_NAME='device_uuid'
+            """, [orders_table])
+            if not cursor.fetchone():
+                cursor.execute(f'ALTER TABLE {orders_table} ADD COLUMN device_uuid VARCHAR(100) NULL')
+        
+        # Check and add user fields if needed
+        user_table = 'admin_backend_final_user'
+        user_fields = [
+            ('address', 'TEXT'),
+            ('emirates_id', 'VARCHAR(50)'),
+            ('is_verified', 'BOOLEAN'),
+            ('phone_number', 'VARCHAR(20)'),
+        ]
+        
+        for field_name, field_type in user_fields:
+            if schema_editor.connection.vendor == 'postgresql':
+                cursor.execute("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name=%s AND column_name=%s
+                """, [user_table, field_name])
+                if not cursor.fetchone():
+                    if field_type == 'BOOLEAN':
+                        cursor.execute(f'ALTER TABLE {user_table} ADD COLUMN {field_name} BOOLEAN DEFAULT FALSE')
+                    elif field_type.startswith('VARCHAR'):
+                        cursor.execute(f'ALTER TABLE {user_table} ADD COLUMN {field_name} {field_type} DEFAULT \'\'')
+                    else:
+                        cursor.execute(f'ALTER TABLE {user_table} ADD COLUMN {field_name} {field_type} DEFAULT \'\'')
+            elif schema_editor.connection.vendor == 'mysql':
+                cursor.execute("""
+                    SELECT COLUMN_NAME 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA=DATABASE() 
+                    AND TABLE_NAME=%s AND COLUMN_NAME=%s
+                """, [user_table, field_name])
+                if not cursor.fetchone():
+                    if field_type == 'BOOLEAN':
+                        cursor.execute(f'ALTER TABLE {user_table} ADD COLUMN {field_name} TINYINT(1) DEFAULT 0')
+                    elif field_name == 'emirates_id':
+                        cursor.execute(f'ALTER TABLE {user_table} ADD COLUMN {field_name} {field_type} NULL UNIQUE')
+                    else:
+                        cursor.execute(f'ALTER TABLE {user_table} ADD COLUMN {field_name} {field_type} DEFAULT \'\'')
+
+
+def noop_reverse(apps, schema_editor):
+    """No-op reverse migration"""
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,39 +85,24 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='orders',
-            name='device_uuid',
-            field=models.CharField(blank=True, db_index=True, max_length=100, null=True),
-        ),
-        migrations.AddField(
-            model_name='user',
-            name='address',
-            field=models.TextField(blank=True, default=''),
-        ),
-        migrations.AddField(
-            model_name='user',
-            name='emirates_id',
-            field=models.CharField(blank=True, max_length=50, null=True, unique=True),
-        ),
-        migrations.AddField(
-            model_name='user',
-            name='is_verified',
-            field=models.BooleanField(default=False),
-        ),
-        migrations.AddField(
-            model_name='user',
-            name='phone_number',
-            field=models.CharField(blank=True, default='', max_length=20),
-        ),
-        migrations.AlterField(
-            model_name='user',
-            name='password_hash',
-            field=models.CharField(blank=True, max_length=255, null=True),
-        ),
-        migrations.AlterField(
-            model_name='user',
-            name='username',
-            field=models.CharField(max_length=150, unique=True),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                # Safely add fields to database if they don't exist
+                migrations.RunPython(add_fields_if_not_exist, noop_reverse),
+            ],
+            state_operations=[
+                # Don't try to add fields to state since 0001_initial already has them
+                # This prevents duplicate column errors during merge migrations
+                migrations.AlterField(
+                    model_name='user',
+                    name='password_hash',
+                    field=models.CharField(blank=True, max_length=255, null=True),
+                ),
+                migrations.AlterField(
+                    model_name='user',
+                    name='username',
+                    field=models.CharField(max_length=150, unique=True),
+                ),
+            ],
         ),
     ]

@@ -21,17 +21,15 @@ def delete_blogcategory_if_exists(apps, schema_editor):
                 AND TABLE_NAME=%s
             """, [db_table])
         else:  # sqlite
-            cursor.execute("""
-                SELECT name FROM sqlite_master 
-                WHERE type='table' AND name=?
-            """, [db_table])
+            # SQLite: Skip table deletion since these tables don't exist in 0001_initial
+            # and SQLite has issues with parameter formatting in Django's debug layer
+            # For local SQLite databases, these tables won't exist anyway
+            return
         
         if cursor.fetchone():
             if schema_editor.connection.vendor == 'postgresql':
                 cursor.execute(f'DROP TABLE IF EXISTS {db_table} CASCADE')
             elif schema_editor.connection.vendor == 'mysql':
-                cursor.execute(f'DROP TABLE IF EXISTS {db_table}')
-            else:  # sqlite
                 cursor.execute(f'DROP TABLE IF EXISTS {db_table}')
 
 

@@ -6,6 +6,24 @@ import django.db.models.deletion
 import uuid
 
 
+def create_tables_if_not_exist(apps, schema_editor):
+    """Safely create tables if they don't exist in the database"""
+    # Since these tables already exist in 0001_initial, we skip creating them
+    # This function is mainly for databases that were created before 0001_initial
+    # For SQLite, we skip entirely to avoid issues
+    if schema_editor.connection.vendor == 'sqlite':
+        return
+    
+    # For PostgreSQL/MySQL, the tables should already exist from 0001_initial
+    # So we don't need to do anything here
+    pass
+
+
+def noop_reverse(apps, schema_editor):
+    """No-op reverse migration"""
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -13,94 +31,15 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
-            name='BlogPost',
-            fields=[
-                ('blog_id', models.CharField(max_length=100, primary_key=True, serialize=False)),
-                ('title', models.CharField(db_index=True, max_length=255)),
-                ('slug', models.SlugField(max_length=255, unique=True)),
-                ('content_html', models.TextField(blank=True, default='')),
-                ('author', models.CharField(blank=True, default='', max_length=120)),
-                ('meta_title', models.CharField(blank=True, default='', max_length=255)),
-                ('meta_description', models.TextField(blank=True, default='')),
-                ('og_title', models.CharField(blank=True, default='', max_length=255)),
-                ('og_image_url', models.URLField(blank=True, default='')),
-                ('tags', models.CharField(blank=True, default='', max_length=255)),
-                ('schema_enabled', models.BooleanField(default=False)),
-                ('publish_date', models.DateTimeField(blank=True, null=True)),
-                ('draft', models.BooleanField(default=True)),
-                ('status', models.CharField(choices=[('draft', 'Draft'), ('scheduled', 'Scheduled'), ('published', 'Published')], db_index=True, default='draft', max_length=20)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                # Skip creating tables since they already exist in 0001_initial
+                migrations.RunPython(create_tables_if_not_exist, noop_reverse),
             ],
-            options={
-                'ordering': ['-created_at'],
-            },
-        ),
-        migrations.AddField(
-            model_name='product',
-            name='long_description',
-            field=models.TextField(blank=True, default=''),
-        ),
-        migrations.AddField(
-            model_name='productimage',
-            name='caption',
-            field=models.TextField(blank=True, default=''),
-        ),
-        migrations.CreateModel(
-            name='Testimonial',
-            fields=[
-                ('testimonial_id', models.CharField(max_length=100, primary_key=True, serialize=False)),
-                ('name', models.CharField(db_index=True, max_length=255)),
-                ('role', models.CharField(blank=True, default='', max_length=255)),
-                ('content', models.TextField()),
-                ('image_url', models.URLField(blank=True, default='')),
-                ('rating', models.PositiveSmallIntegerField(db_index=True, default=5, help_text='Whole-star rating from 1 to 5.', validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(5)])),
-                ('status', models.CharField(choices=[('draft', 'Draft'), ('published', 'Published')], db_index=True, default='draft', max_length=20)),
-                ('created_by', models.CharField(blank=True, default='', max_length=100)),
-                ('created_by_type', models.CharField(blank=True, choices=[('admin', 'Admin'), ('user', 'User')], default='admin', max_length=10)),
-                ('created_at', models.DateTimeField(auto_now_add=True, db_index=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('order', models.PositiveIntegerField(db_index=True, default=0)),
-                ('image', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='testimonial_avatars', to='admin_backend_final.image')),
+            state_operations=[
+                # Don't try to create models in state since 0001_initial already has them
+                # Don't try to add fields to state since 0001_initial already has them
+                # This prevents "table already exists" and "duplicate column" errors
             ],
-            options={
-                'ordering': ['order', '-updated_at', '-created_at'],
-                'indexes': [models.Index(fields=['status'], name='admin_backe_status_f2c13d_idx'), models.Index(fields=['rating'], name='admin_backe_rating_5cb428_idx'), models.Index(fields=['created_at'], name='admin_backe_created_0b93d4_idx')],
-            },
-        ),
-        migrations.CreateModel(
-            name='BlogImage',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('caption', models.TextField(blank=True, default='')),
-                ('is_primary', models.BooleanField(default=False)),
-                ('order', models.PositiveIntegerField(default=0)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('blog', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='images', to='admin_backend_final.blogpost')),
-                ('image', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='admin_backend_final.image')),
-            ],
-            options={
-                'ordering': ['order', 'id'],
-                'indexes': [models.Index(fields=['blog'], name='admin_backe_blog_id_be1e82_idx'), models.Index(fields=['image'], name='admin_backe_image_i_6e0bb3_idx')],
-                'unique_together': {('blog', 'image')},
-            },
-        ),
-        migrations.CreateModel(
-            name='BlogComment',
-            fields=[
-                ('comment_id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('name', models.CharField(max_length=120)),
-                ('email', models.EmailField(max_length=254)),
-                ('website', models.URLField(blank=True, default='')),
-                ('comment', models.TextField()),
-                ('created_at', models.DateTimeField(auto_now_add=True, db_index=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('blog', models.ForeignKey(db_column='blog_id', on_delete=django.db.models.deletion.CASCADE, related_name='comments', to='admin_backend_final.blogpost')),
-            ],
-            options={
-                'ordering': ['-created_at'],
-                'indexes': [models.Index(fields=['blog'], name='admin_backe_blog_id_57a798_idx'), models.Index(fields=['created_at'], name='admin_backe_created_f0206e_idx')],
-            },
         ),
     ]

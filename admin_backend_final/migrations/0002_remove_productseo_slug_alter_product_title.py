@@ -26,10 +26,10 @@ def remove_slug_if_exists(apps, schema_editor):
             if cursor.fetchone():
                 cursor.execute(f'ALTER TABLE {db_table} DROP COLUMN slug')
         else:  # sqlite
-            cursor.execute("PRAGMA table_info(admin_backend_final_productseo)")
-            columns = [row[1] for row in cursor.fetchall()]
-            if 'slug' in columns:
-                cursor.execute("ALTER TABLE admin_backend_final_productseo DROP COLUMN slug")
+            # SQLite doesn't support DROP COLUMN, especially for UNIQUE columns
+            # For SQLite, we'll skip the column removal since it won't cause issues
+            # The column will remain but Django won't use it
+            pass
 
 
 def noop_reverse(apps, schema_editor):

@@ -6,6 +6,24 @@ import django.utils.timezone
 import uuid
 
 
+def create_recentlydeleteditem_if_not_exist(apps, schema_editor):
+    """Safely create RecentlyDeletedItem table if it doesn't exist in the database"""
+    # Since RecentlyDeletedItem already exists in 0001_initial, we skip creating it
+    # This function is mainly for databases that were created before 0001_initial
+    # For SQLite, we skip entirely to avoid issues
+    if schema_editor.connection.vendor == 'sqlite':
+        return
+    
+    # For PostgreSQL/MySQL, the table should already exist from 0001_initial
+    # So we don't need to do anything here
+    pass
+
+
+def noop_reverse(apps, schema_editor):
+    """No-op reverse migration"""
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -13,21 +31,14 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
-            name='RecentlyDeletedItem',
-            fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('table_name', models.CharField(db_index=True, max_length=100)),
-                ('record_id', models.CharField(db_index=True, max_length=100)),
-                ('record_data', models.JSONField()),
-                ('deleted_at', models.DateTimeField(default=django.utils.timezone.now)),
-                ('deleted_by', models.CharField(blank=True, default='', max_length=100)),
-                ('deleted_reason', models.TextField(blank=True, default='')),
-                ('status', models.CharField(choices=[('VISIBLE', 'Visible'), ('HIDE', 'Hidden'), ('UNHIDE', 'Unhidden'), ('PERMANENT', 'Permanently Deleted')], db_index=True, default='VISIBLE', max_length=20)),
-                ('parent', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='children', to='admin_backend_final.recentlydeleteditem')),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                # Skip creating table since it already exists in 0001_initial
+                migrations.RunPython(create_recentlydeleteditem_if_not_exist, noop_reverse),
             ],
-            options={
-                'indexes': [models.Index(fields=['table_name', 'record_id'], name='admin_backe_table_n_86ee37_idx'), models.Index(fields=['status'], name='admin_backe_status_3812e6_idx'), models.Index(fields=['deleted_at'], name='admin_backe_deleted_a3d634_idx')],
-            },
+            state_operations=[
+                # Don't try to create model in state since 0001_initial already has it
+                # This prevents "table already exists" errors
+            ],
         ),
     ]

@@ -5,6 +5,47 @@ from django.db import migrations, models
 import django.utils.timezone
 
 
+def remove_callbackrequest_fields_if_exist(apps, schema_editor):
+    """Safely remove callbackrequest fields if they exist in the database"""
+    db_table = 'admin_backend_final_callbackrequest'
+    fields_to_remove = ['contact_info', 'message', 'sender_id']
+    
+    with schema_editor.connection.cursor() as cursor:
+        for field_name in fields_to_remove:
+            # Check if column exists
+            if schema_editor.connection.vendor == 'postgresql':
+                cursor.execute("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name=%s AND column_name=%s
+                """, [db_table, field_name])
+            elif schema_editor.connection.vendor == 'mysql':
+                cursor.execute("""
+                    SELECT COLUMN_NAME 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA=DATABASE() 
+                    AND TABLE_NAME=%s AND COLUMN_NAME=%s
+                """, [db_table, field_name])
+            else:  # sqlite
+                cursor.execute("PRAGMA table_info(admin_backend_final_callbackrequest)")
+                columns = [row[1] for row in cursor.fetchall()]
+                if field_name in columns:
+                    cursor.execute(f'ALTER TABLE {db_table} DROP COLUMN {field_name}')
+                continue
+            
+            if cursor.fetchone():
+                # Column exists, drop it
+                if schema_editor.connection.vendor == 'postgresql':
+                    cursor.execute(f'ALTER TABLE {db_table} DROP COLUMN {field_name}')
+                elif schema_editor.connection.vendor == 'mysql':
+                    cursor.execute(f'ALTER TABLE {db_table} DROP COLUMN {field_name}')
+
+
+def noop_reverse(apps, schema_editor):
+    """No-op reverse migration"""
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -16,92 +57,21 @@ class Migration(migrations.Migration):
             name='callbackrequest',
             options={'ordering': ['-created_at']},
         ),
-        migrations.RemoveField(
-            model_name='callbackrequest',
-            name='contact_info',
-        ),
-        migrations.RemoveField(
-            model_name='callbackrequest',
-            name='message',
-        ),
-        migrations.RemoveField(
-            model_name='callbackrequest',
-            name='sender_id',
-        ),
-        migrations.AddField(
-            model_name='callbackrequest',
-            name='approx_guest',
-            field=models.PositiveIntegerField(blank=True, null=True, validators=[django.core.validators.MinValueValidator(1)]),
-        ),
-        migrations.AddField(
-            model_name='callbackrequest',
-            name='budget',
-            field=models.CharField(blank=True, default='', max_length=100),
-        ),
-        migrations.AddField(
-            model_name='callbackrequest',
-            name='device_uuid',
-            field=models.CharField(db_index=True, default='legacy', max_length=100),
-        ),
-        migrations.AddField(
-            model_name='callbackrequest',
-            name='email',
-            field=models.EmailField(blank=True, default='', max_length=254),
-        ),
-        migrations.AddField(
-            model_name='callbackrequest',
-            name='event_datetime',
-            field=models.DateTimeField(blank=True, db_index=True, null=True),
-        ),
-        migrations.AddField(
-            model_name='callbackrequest',
-            name='event_type',
-            field=models.CharField(db_index=True, default='Other', max_length=120),
-        ),
-        migrations.AddField(
-            model_name='callbackrequest',
-            name='event_venue',
-            field=models.CharField(blank=True, default='', max_length=255),
-        ),
-        migrations.AddField(
-            model_name='callbackrequest',
-            name='notes',
-            field=models.TextField(blank=True, default=''),
-        ),
-        migrations.AddField(
-            model_name='callbackrequest',
-            name='phone_number',
-            field=models.CharField(db_index=True, default='', max_length=20),
-        ),
-        migrations.AddField(
-            model_name='callbackrequest',
-            name='preferred_callback',
-            field=models.DateTimeField(db_index=True, default=django.utils.timezone.now),
-        ),
-        migrations.AddField(
-            model_name='callbackrequest',
-            name='status',
-            field=models.CharField(choices=[('pending', 'Pending'), ('scheduled', 'Scheduled'), ('contacted', 'Contacted'), ('completed', 'Completed'), ('cancelled', 'Cancelled')], db_index=True, default='pending', max_length=20),
-        ),
-        migrations.AddField(
-            model_name='callbackrequest',
-            name='theme',
-            field=models.CharField(blank=True, default='', max_length=120),
-        ),
-        migrations.AddField(
-            model_name='callbackrequest',
-            name='updated_at',
-            field=models.DateTimeField(auto_now=True),
-        ),
-        migrations.AddField(
-            model_name='callbackrequest',
-            name='username',
-            field=models.CharField(db_index=True, default='', max_length=255),
-        ),
-        migrations.AlterField(
-            model_name='callbackrequest',
-            name='created_at',
-            field=models.DateTimeField(auto_now_add=True, db_index=True),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                # Safely remove fields from database if they exist
+                migrations.RunPython(remove_callbackrequest_fields_if_exist, noop_reverse),
+            ],
+            state_operations=[
+                # Don't try to remove fields from state since 0001_initial doesn't have them
+                # Don't try to add fields to state since 0001_initial already has them
+                # This prevents KeyError during merge migrations
+                migrations.AlterField(
+                    model_name='callbackrequest',
+                    name='created_at',
+                    field=models.DateTimeField(auto_now_add=True, db_index=True),
+                ),
+            ],
         ),
         migrations.AddIndex(
             model_name='callbackrequest',

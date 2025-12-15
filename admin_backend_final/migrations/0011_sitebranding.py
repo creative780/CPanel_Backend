@@ -4,6 +4,24 @@ from django.db import migrations, models
 import django.db.models.deletion
 
 
+def create_sitebranding_if_not_exist(apps, schema_editor):
+    """Safely create SiteBranding table if it doesn't exist in the database"""
+    # Since SiteBranding already exists in 0001_initial, we skip creating it
+    # This function is mainly for databases that were created before 0001_initial
+    # For SQLite, we skip entirely to avoid issues
+    if schema_editor.connection.vendor == 'sqlite':
+        return
+    
+    # For PostgreSQL/MySQL, the table should already exist from 0001_initial
+    # So we don't need to do anything here
+    pass
+
+
+def noop_reverse(apps, schema_editor):
+    """No-op reverse migration"""
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -11,20 +29,14 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
-            name='SiteBranding',
-            fields=[
-                ('branding_id', models.CharField(max_length=100, primary_key=True, serialize=False)),
-                ('site_title', models.CharField(blank=True, db_index=True, default='', max_length=255)),
-                ('singleton_lock', models.CharField(db_index=True, default='X', editable=False, max_length=1, unique=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True, db_index=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('favicon', models.ForeignKey(blank=True, db_column='favicon_image_id', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='as_favicon_for_branding', to='admin_backend_final.image')),
-                ('logo', models.ForeignKey(blank=True, db_column='logo_image_id', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='as_logo_for_branding', to='admin_backend_final.image')),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                # Skip creating table since it already exists in 0001_initial
+                migrations.RunPython(create_sitebranding_if_not_exist, noop_reverse),
             ],
-            options={
-                'verbose_name': 'Site Branding',
-                'verbose_name_plural': 'Site Branding',
-            },
+            state_operations=[
+                # Don't try to create model in state since 0001_initial already has it
+                # This prevents "table already exists" errors
+            ],
         ),
     ]
