@@ -3,6 +3,43 @@
 from django.db import migrations
 
 
+def delete_blogcategory_if_exists(apps, schema_editor):
+    """Safely delete BlogCategory table if it exists in the database"""
+    db_table = 'admin_backend_final_blogcategory'
+    with schema_editor.connection.cursor() as cursor:
+        if schema_editor.connection.vendor == 'postgresql':
+            cursor.execute("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_name=%s
+            """, [db_table])
+        elif schema_editor.connection.vendor == 'mysql':
+            cursor.execute("""
+                SELECT TABLE_NAME 
+                FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_SCHEMA=DATABASE() 
+                AND TABLE_NAME=%s
+            """, [db_table])
+        else:  # sqlite
+            cursor.execute("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name=?
+            """, [db_table])
+        
+        if cursor.fetchone():
+            if schema_editor.connection.vendor == 'postgresql':
+                cursor.execute(f'DROP TABLE IF EXISTS {db_table} CASCADE')
+            elif schema_editor.connection.vendor == 'mysql':
+                cursor.execute(f'DROP TABLE IF EXISTS {db_table}')
+            else:  # sqlite
+                cursor.execute(f'DROP TABLE IF EXISTS {db_table}')
+
+
+def noop_reverse(apps, schema_editor):
+    """No-op reverse migration"""
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,7 +47,14 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.DeleteModel(
-            name='BlogCategory',
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                # Safely delete BlogCategory table from database if it exists
+                migrations.RunPython(delete_blogcategory_if_exists, noop_reverse),
+            ],
+            state_operations=[
+                # Don't try to delete BlogCategory from state since 0001_initial doesn't have it
+                # This prevents KeyError during merge migrations
+            ],
         ),
     ]
