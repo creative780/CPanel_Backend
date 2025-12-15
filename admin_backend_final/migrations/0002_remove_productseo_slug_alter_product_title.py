@@ -3,6 +3,40 @@
 from django.db import migrations, models
 
 
+def remove_slug_if_exists(apps, schema_editor):
+    """Safely remove slug field if it exists in the database"""
+    db_table = 'admin_backend_final_productseo'
+    with schema_editor.connection.cursor() as cursor:
+        # Check if slug column exists
+        if schema_editor.connection.vendor == 'postgresql':
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name=%s AND column_name='slug'
+            """, [db_table])
+            if cursor.fetchone():
+                cursor.execute(f'ALTER TABLE {db_table} DROP COLUMN slug')
+        elif schema_editor.connection.vendor == 'mysql':
+            cursor.execute("""
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA=DATABASE() 
+                AND TABLE_NAME=%s AND COLUMN_NAME='slug'
+            """, [db_table])
+            if cursor.fetchone():
+                cursor.execute(f'ALTER TABLE {db_table} DROP COLUMN slug')
+        else:  # sqlite
+            cursor.execute("PRAGMA table_info(admin_backend_final_productseo)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if 'slug' in columns:
+                cursor.execute("ALTER TABLE admin_backend_final_productseo DROP COLUMN slug")
+
+
+def noop_reverse(apps, schema_editor):
+    """No-op reverse migration"""
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,9 +44,15 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='productseo',
-            name='slug',
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                # Safely remove slug from database if it exists
+                migrations.RunPython(remove_slug_if_exists, noop_reverse),
+            ],
+            state_operations=[
+                # Don't try to remove slug from state since 0001_initial doesn't have it
+                # This prevents KeyError during merge migrations
+            ],
         ),
         migrations.AlterField(
             model_name='product',
