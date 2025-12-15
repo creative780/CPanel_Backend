@@ -1,5 +1,7 @@
 # Core Django
-Django>=5.0.0,<6.0.0
+# Note: Django 5.0+ requires Python 3.10+
+# Using Django 4.2 for Python 3.8+ compatibility
+Django>=4.2.0,<5.0.0
 djangorestframework>=3.14.0
 django-cors-headers>=4.0.0
 djangorestframework-simplejwt>=5.0.0
