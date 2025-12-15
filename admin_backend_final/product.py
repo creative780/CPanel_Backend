@@ -25,8 +25,10 @@ from .utilities import (
     format_image_object,
     generate_product_id,
     generate_unique_seo_id,
+    generate_unique_slug,
     save_image,
 )
+from django.utils.text import slugify
 from .models import *
 from .permissions import FrontendOnlyPermission
 
@@ -139,15 +141,24 @@ def save_product_seo(data, product):
     base_seo_id = f"SEO-{product.product_id}"
     unique_seo_id = generate_unique_seo_id(base_seo_id)
 
+    # Generate slug from product title
+    product_title = product.title or data.get('name', '')
+    base_slug = slugify(product_title) or f"product-{product.product_id}"
+    
     seo, _created = ProductSEO.objects.get_or_create(
         product=product,
         defaults={
             "seo_id": unique_seo_id,
+            "slug": generate_unique_slug(base_slug, instance=None),
             "meta_keywords": [],
             "created_at": now,
             "updated_at": now,
         }
     )
+
+    # Ensure slug is always set (for existing records that might not have slug)
+    if not seo.slug or not seo.slug.strip():
+        seo.slug = generate_unique_slug(base_slug, instance=seo)
 
     def clean_comma_array(value):
         return [v.strip() for v in value.split(",") if v.strip()] if isinstance(value, str) else (value or [])
@@ -1261,7 +1272,6 @@ class UpdateProductOrderAPIView(APIView):
 class EditProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
-    @transaction.atomic
     def post(self, request):
         try:
             data = _parse_payload(request)
@@ -1292,95 +1302,107 @@ class EditProductAPIView(APIView):
 
             updated_products = []
 
-            for product_id in product_ids:
-                product = (
-                    Product.objects
-                    .filter(product_id=product_id)
-                    .select_for_update()
-                    .first()
+            # Use context manager for better transaction control
+            try:
+                with transaction.atomic():
+                    for product_id in product_ids:
+                        product = (
+                            Product.objects
+                            .filter(product_id=product_id)
+                            .select_for_update()
+                            .first()
+                        )
+                        if not product:
+                            continue
+
+                        # Title is editable if a non-empty name is provided
+                        if 'name' in data and (data.get('name') or '').strip():
+                            product.title = data.get('name').strip()
+
+                        # Respect rich HTML; do not blank unless explicitly sent non-empty
+                        if 'description' in data:
+                            desc = data.get('description')
+                            if desc is not None and desc != '':
+                                product.description = desc
+                        if 'long_description' in data:
+                            ldesc = data.get('long_description')
+                            if ldesc is not None and ldesc != '':
+                                product.long_description = ldesc
+
+                        product.brand = data.get('brand_title', product.brand)
+                        if 'price' in data:
+                            product.price = _to_decimal(data.get('price', product.price))
+                        if 'discounted_price' in data:
+                            product.discounted_price = _to_decimal(data.get('discounted_price', product.discounted_price))
+                        if 'tax_rate' in data:
+                            product.tax_rate = float(_to_decimal(data.get('tax_rate', product.tax_rate)))
+                        product.price_calculator = data.get('price_calculator', product.price_calculator)
+                        product.video_url = data.get('video_url', product.video_url)
+                        product.status = data.get('status', product.status)
+
+                        # Optional rating fields
+                        if 'rating' in data:
+                            product.rating = _coerce_rating(data.get('rating'), getattr(product, "rating", 0.0))
+                        if 'rating_count' in data:
+                            try:
+                                rc = int(data.get('rating_count'))
+                                product.rating_count = max(0, rc)
+                            except (TypeError, ValueError):
+                                pass
+
+                        product.updated_at = _now()
+                        product.save()
+
+                        inventory, _ = ProductInventory.objects.get_or_create(
+                            product=product,
+                            defaults={
+                                'inventory_id': f"INV-{product.product_id}",
+                                'stock_quantity': 0,
+                                'low_stock_alert': 0,
+                                'stock_status': 'Out Of Stock',
+                            }
+                        )
+                        if 'quantity' in data:
+                            inventory.stock_quantity = int(data['quantity'])
+                        if 'low_stock_alert' in data:
+                            inventory.low_stock_alert = int(data['low_stock_alert'])
+                        update_stock_status(inventory)
+
+                        # Delegate to existing helpers
+                        save_product_seo(data, product)
+                        save_shipping_info(data, product)
+                        save_product_variants(data, product)
+                        save_product_subcategories(data, product)
+                        save_product_attributes(data, product)
+                        save_product_cards(data, product)
+                        # Images:
+                        # - If replacing and we have new images (legacy flow), keep supporting that.
+                        # - Independently, if images_with_meta is provided, upsert metadata and/or add new images from dataUrls.
+                        if (force_replace and has_new_images) or images_with_meta:
+                            payload_for_images = {
+                                # keep legacy support if caller used images list
+                                'images': incoming_images if (force_replace and has_new_images) else [],
+                                'image_alt_text': (data.get('image_alt_text') or 'Alt-text').strip(),
+                                # NEW preferred structure
+                                'images_with_meta': images_with_meta,
+                                'force_replace_images': bool(force_replace and has_new_images),
+                            }
+                            save_product_images(payload_for_images, product)
+
+                        updated_products.append(product.product_id)
+
+                return Response({'success': True, 'updated': updated_products}, status=status.HTTP_200_OK)
+
+            except (IntegrityError, DatabaseError) as e:
+                # Transaction is automatically rolled back when exception exits atomic block
+                logger.exception("EditProduct database error (rolled back)")
+                return Response(
+                    {'error': 'Database error while saving product', 'detail': str(e)},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
-                if not product:
-                    continue
-
-                # Title is editable if a non-empty name is provided
-                if 'name' in data and (data.get('name') or '').strip():
-                    product.title = data.get('name').strip()
-
-                # Respect rich HTML; do not blank unless explicitly sent non-empty
-                if 'description' in data:
-                    desc = data.get('description')
-                    if desc is not None and desc != '':
-                        product.description = desc
-                if 'long_description' in data:
-                    ldesc = data.get('long_description')
-                    if ldesc is not None and ldesc != '':
-                        product.long_description = ldesc
-
-                product.brand = data.get('brand_title', product.brand)
-                if 'price' in data:
-                    product.price = _to_decimal(data.get('price', product.price))
-                if 'discounted_price' in data:
-                    product.discounted_price = _to_decimal(data.get('discounted_price', product.discounted_price))
-                if 'tax_rate' in data:
-                    product.tax_rate = float(_to_decimal(data.get('tax_rate', product.tax_rate)))
-                product.price_calculator = data.get('price_calculator', product.price_calculator)
-                product.video_url = data.get('video_url', product.video_url)
-                product.status = data.get('status', product.status)
-
-                # Optional rating fields
-                if 'rating' in data:
-                    product.rating = _coerce_rating(data.get('rating'), getattr(product, "rating", 0.0))
-                if 'rating_count' in data:
-                    try:
-                        rc = int(data.get('rating_count'))
-                        product.rating_count = max(0, rc)
-                    except (TypeError, ValueError):
-                        pass
-
-                product.updated_at = _now()
-                product.save()
-
-                inventory, _ = ProductInventory.objects.get_or_create(
-                    product=product,
-                    defaults={
-                        'inventory_id': f"INV-{product.product_id}",
-                        'stock_quantity': 0,
-                        'low_stock_alert': 0,
-                        'stock_status': 'Out Of Stock',
-                    }
-                )
-                if 'quantity' in data:
-                    inventory.stock_quantity = int(data['quantity'])
-                if 'low_stock_alert' in data:
-                    inventory.low_stock_alert = int(data['low_stock_alert'])
-                update_stock_status(inventory)
-
-                # Delegate to existing helpers
-                save_product_seo(data, product)
-                save_shipping_info(data, product)
-                save_product_variants(data, product)
-                save_product_subcategories(data, product)
-                save_product_attributes(data, product)
-                save_product_cards(data, product)
-                # Images:
-                # - If replacing and we have new images (legacy flow), keep supporting that.
-                # - Independently, if images_with_meta is provided, upsert metadata and/or add new images from dataUrls.
-                if (force_replace and has_new_images) or images_with_meta:
-                    payload_for_images = {
-                        # keep legacy support if caller used images list
-                        'images': incoming_images if (force_replace and has_new_images) else [],
-                        'image_alt_text': (data.get('image_alt_text') or 'Alt-text').strip(),
-                        # NEW preferred structure
-                        'images_with_meta': images_with_meta,
-                        'force_replace_images': bool(force_replace and has_new_images),
-                    }
-                    save_product_images(payload_for_images, product)
-
-                updated_products.append(product.product_id)
-
-            return Response({'success': True, 'updated': updated_products}, status=status.HTTP_200_OK)
 
         except Exception as e:
+            # For non-database errors outside the transaction
             logger.exception("EditProduct failed")
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

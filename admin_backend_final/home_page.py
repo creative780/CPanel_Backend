@@ -158,16 +158,29 @@ class SecondCarouselAPIView(APIView):
             for img in images:
                 subcategory_obj = None
                 if img.subcategory:
-                    subcategory_obj = {
-                        'id': img.subcategory.pk,
-                        'name': getattr(img.subcategory, 'name', ''),
-                        'slug': getattr(img.subcategory, 'slug', ''),
-                    }
+                    try:
+                        # Ensure ID is a string for consistent frontend handling
+                        subcategory_id = str(img.subcategory.pk) if img.subcategory.pk else None
+                        subcategory_name = str(getattr(img.subcategory, 'name', '')) if getattr(img.subcategory, 'name', None) else ''
+                        
+                        # Only create subcategory_obj if we have at least an ID or name (not empty strings)
+                        if (subcategory_id and subcategory_id.strip()) or (subcategory_name and subcategory_name.strip()):
+                            subcategory_obj = {
+                                'id': subcategory_id,
+                                'name': subcategory_name,
+                                # Removed slug since SubCategory model doesn't have slug field
+                            }
+                        else:
+                            # If subcategory exists but has no valid data, set to None
+                            subcategory_obj = None
+                    except Exception as e:
+                        print(f"❌ Error getting subcategory for SecondCarouselImage {img.id}: {e}")
+                        subcategory_obj = None
 
                 image_data.append({
                     'src': img.image.image_file.url if img.image and img.image.image_file else '',
                     'title': img.title,
-                    'subcategory': subcategory_obj,
+                    'subcategory': subcategory_obj,  # Will be None if no subcategory linked or invalid
                 })
 
             return Response({
