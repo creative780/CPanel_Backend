@@ -5,7 +5,7 @@ import json
 import uuid
 from typing import List, Tuple
 
-from django.db import transaction
+from django.db import transaction, connection
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.text import slugify
@@ -181,55 +181,85 @@ class ShowSubcatAttributesAPIView(APIView):
 
         No DB ordering except PK; Python-sorts the small page by name.
         """
-        sub_id = (request.GET.get("subcategory_id") or "").strip()
-
-        # Pagination (bounded)
         try:
-            page = max(1, int(request.GET.get("page", 1)))
-        except Exception:
-            page = 1
-        try:
-            page_size = int(request.GET.get("page_size", 50))
-        except Exception:
-            page_size = 50
-        page_size = min(max(1, page_size), 200)
-        offset = (page - 1) * page_size
+            sub_id = (request.GET.get("subcategory_id") or "").strip()
 
-        base = AttributeSubCategory.objects.all().order_by()
+            # Pagination (bounded)
+            try:
+                page = max(1, int(request.GET.get("page", 1)))
+            except Exception:
+                page = 1
+            try:
+                page_size = int(request.GET.get("page_size", 50))
+            except Exception:
+                page_size = 50
+            page_size = min(max(1, page_size), 200)
+            offset = (page - 1) * page_size
 
-        if sub_id:
-            base = base.filter(
-                Q(subcategory_ids__contains=[sub_id]) | Q(subcategory_ids=[])
-            ).order_by()
+            base = AttributeSubCategory.objects.all().order_by()
 
-        total = base.count()
+            if sub_id:
+                # Check database backend to determine query strategy
+                is_sqlite = connection.vendor == 'sqlite'
+                
+                if is_sqlite:
+                    # SQLite doesn't support __contains on JSONField
+                    # Filter in Python instead
+                    all_attrs = list(AttributeSubCategory.objects.all())
+                    filtered_attrs = []
+                    for attr in all_attrs:
+                        sub_ids = attr.subcategory_ids or []
+                        # Check if sub_id is in the list OR if list is empty (global attribute)
+                        if sub_id in sub_ids or len(sub_ids) == 0:
+                            filtered_attrs.append(attr.attribute_id)
+                    
+                    # Now filter by the IDs we found
+                    if filtered_attrs:
+                        base = AttributeSubCategory.objects.filter(attribute_id__in=filtered_attrs).order_by()
+                    else:
+                        # No matches, return empty queryset
+                        base = AttributeSubCategory.objects.none()
+                else:
+                    # MySQL/PostgreSQL support JSONField contains lookup
+                    base = base.filter(
+                        Q(subcategory_ids__contains=[sub_id]) | Q(subcategory_ids=[])
+                    ).order_by()
 
-        id_page = list(
-            base.order_by("attribute_id")
-                .values_list("attribute_id", flat=True)[offset : offset + page_size]
-        )
+            total = base.count()
 
-        if not id_page:
-            return Response(
-                {"count": total, "page": page, "page_size": page_size, "results": []},
-                status=status.HTTP_200_OK,
+            id_page = list(
+                base.order_by("attribute_id")
+                    .values_list("attribute_id", flat=True)[offset : offset + page_size]
             )
 
-        objs = AttributeSubCategory.objects.only(
-            "attribute_id", "name", "slug", "type", "status",
-            "description",               # NEW
-            "values", "created_at", "subcategory_ids"
-        ).in_bulk(id_page, field_name="attribute_id")
+            if not id_page:
+                return Response(
+                    {"count": total, "page": page, "page_size": page_size, "results": []},
+                    status=status.HTTP_200_OK,
+                )
 
-        items = [objs.get(aid) for aid in id_page if aid in objs and objs.get(aid)]
-        items.sort(key=lambda o: (o.name or "").lower())
+            objs = AttributeSubCategory.objects.only(
+                "attribute_id", "name", "slug", "type", "status",
+                "description",
+                "values", "created_at", "subcategory_ids"
+            ).in_bulk(id_page, field_name="attribute_id")
 
-        data = [_serialize_attribute(a) for a in items]
+            items = [objs.get(aid) for aid in id_page if aid in objs and objs.get(aid)]
+            items.sort(key=lambda o: (o.name or "").lower())
 
-        return Response(
-            {"count": total, "page": page, "page_size": page_size, "results": data},
-            status=status.HTTP_200_OK,
-        )
+            data = [_serialize_attribute(a) for a in items]
+
+            return Response(
+                {"count": total, "page": page, "page_size": page_size, "results": data},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {"error": str(e), "message": "Failed to fetch attributes"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class SaveSubcatAttributesAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]

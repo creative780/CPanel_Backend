@@ -32,10 +32,21 @@ from .models import (
 
 # ---------- LLM (Groq) & LangChain ----------
 # pip install langchain langchain-groq
-from langchain_groq import ChatGroq
-from langchain.schema import SystemMessage, HumanMessage
-from langchain.agents import Tool
-from langchain.agents import initialize_agent, AgentType
+try:
+    from langchain_groq import ChatGroq
+    from langchain.schema import SystemMessage, HumanMessage
+    from langchain.agents import Tool
+    from langchain.agents import initialize_agent, AgentType
+    LANGCHAIN_AVAILABLE = True
+except ImportError:
+    LANGCHAIN_AVAILABLE = False
+    ChatGroq = None
+    SystemMessage = None
+    HumanMessage = None
+    Tool = None
+    initialize_agent = None
+    AgentType = None
+
 from dotenv import load_dotenv
 load_dotenv()  # <-- add this early
 
@@ -54,9 +65,11 @@ MODEL_CANDIDATES = [
 ]
 
 def _llm_available() -> bool:
-    return bool(GROQ_API_KEY and GROQ_API_KEY.strip())
+    return bool(LANGCHAIN_AVAILABLE and GROQ_API_KEY and GROQ_API_KEY.strip())
 
-def _new_chatgroq(model: str) -> ChatGroq:
+def _new_chatgroq(model: str):
+    if not LANGCHAIN_AVAILABLE:
+        raise RuntimeError("langchain_groq is not installed. Install it with: pip install langchain langchain-groq")
     return ChatGroq(
         groq_api_key=GROQ_API_KEY,
         model_name=model,
@@ -531,25 +544,28 @@ def tool_ecommerce(query_text: str) -> str:
     }, default=str)
 
 # Expose tools to the agent
-TOOLS: List[Tool] = [
-    Tool(
-        name="clock",
-        func=lambda q: tool_clock(q),
-        description="Use to answer questions about the current date and time. Input can be empty."
-    ),
-    Tool(
-        name="calculator",
-        func=lambda q: tool_calculator(q),
-        description="Use for basic arithmetic or simple linear equation like '2x+7=15'. Input is the math expression."
-    ),
-    Tool(
-        name="ecommerce_search",
-        func=lambda q: tool_ecommerce(q),
-        description="Use to find products/categories/subcategories and filter by budget. Input is the user's request text."
-    ),
-]
+if LANGCHAIN_AVAILABLE:
+    TOOLS: List[Tool] = [
+        Tool(
+            name="clock",
+            func=lambda q: tool_clock(q),
+            description="Use to answer questions about the current date and time. Input can be empty."
+        ),
+        Tool(
+            name="calculator",
+            func=lambda q: tool_calculator(q),
+            description="Use for basic arithmetic or simple linear equation like '2x+7=15'. Input is the math expression."
+        ),
+        Tool(
+            name="ecommerce_search",
+            func=lambda q: tool_ecommerce(q),
+            description="Use to find products/categories/subcategories and filter by budget. Input is the user's request text."
+        ),
+    ]
+else:
+    TOOLS: List = []
 
-def _llm() -> ChatGroq:
+def _llm():
     """
     Build a ChatGroq with a non-decommissioned model.
     We try MODEL_CANDIDATES in order and return the first that initializes successfully.

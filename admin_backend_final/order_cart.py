@@ -638,6 +638,54 @@ class ShowOrderAPIView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+class DeleteOrderAPIView(APIView):
+    permission_classes = [FrontendOnlyPermission]
+
+    @transaction.atomic
+    def post(self, request):
+        try:
+            data = json.loads(request.body or "{}")
+        except Exception:
+            data = {}
+        
+        order_ids = data.get('ids', [])
+        confirm = data.get('confirm', False)
+
+        if not order_ids:
+            return Response({'error': 'No order IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        deleted_count = 0
+        not_found = []
+
+        for order_id in order_ids:
+            try:
+                order = Orders.objects.get(order_id=order_id)
+                
+                # Delete related OrderItems
+                OrderItem.objects.filter(order=order).delete()
+                
+                # Delete related OrderDelivery if exists
+                OrderDelivery.objects.filter(order=order).delete()
+                
+                # Delete the order itself
+                order.delete()
+                deleted_count += 1
+            except Orders.DoesNotExist:
+                not_found.append(order_id)
+                continue
+            except Exception as e:
+                return Response({'error': f'Error deleting order {order_id}: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        response_data = {
+            'success': True,
+            'message': f'Deleted {deleted_count} order(s)',
+            'deleted': deleted_count,
+            'not_found': not_found
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+
 class EditOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
     @transaction.atomic

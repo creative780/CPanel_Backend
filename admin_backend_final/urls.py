@@ -1,5 +1,5 @@
 from django.urls import path
-from  . import views, utilities, category, order_cart, product, home_page, blog, testimonials, attribute, site_details, callback, deleted
+from  . import views, utilities, category, order_cart, product, home_page, blog, testimonials, attribute, site_details, callback, deleted, favorites
 from . import chat
 urlpatterns = [
     path('save-image/', utilities.SaveImageAPIView.as_view(), name='save_image'),
@@ -41,9 +41,13 @@ urlpatterns = [
     path('show-cart/', order_cart.ShowCartAPIView.as_view(), name='show_cart'),
     path('save-cart/', order_cart.SaveCartAPIView.as_view(), name='save_cart'),
     path('delete-cart-item/', order_cart.DeleteCartItemAPIView.as_view(), name='delete_cart_item'),
+    path('save-favorite/', favorites.SaveFavoriteAPIView.as_view(), name='save_favorite'),
+    path('delete-favorite/', favorites.DeleteFavoriteAPIView.as_view(), name='delete_favorite'),
+    path('show-favorites/', favorites.ShowFavoritesAPIView.as_view(), name='show_favorites'),
     path('show-order/', order_cart.ShowOrderAPIView.as_view(), name='show_order'),
     path('save-order/', order_cart.SaveOrderAPIView.as_view(), name='save_order'),
     path('edit-order/', order_cart.EditOrderAPIView.as_view(), name='edit_order'),
+    path('delete-orders/', order_cart.DeleteOrderAPIView.as_view(), name='delete_orders'),
     path("show-specific-user-orders/", order_cart.ShowSpecificUserOrdersAPIView.as_view(), name="show_specific_user_orders"),
     path('save-admin/', views.SaveAdminAPIView.as_view(), name='save_admin'),
     path('show-admin/', views.ShowAdminAPIView.as_view(), name='show_admin'),

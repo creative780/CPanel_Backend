@@ -320,6 +320,7 @@ class ShippingInfo(models.Model):
 class ProductSEO(models.Model):
     seo_id = models.CharField(primary_key=True, max_length=100)
     product = models.OneToOneField(Product, on_delete=models.CASCADE)
+    slug = models.SlugField(max_length=255, db_index=True)
     image_alt_text = models.CharField(max_length=255, blank=True, default="")
     meta_title = models.CharField(max_length=255, blank=True, default="")
     meta_description = models.TextField(blank=True, default="")
@@ -618,6 +619,26 @@ class CartItem(models.Model):
     selected_attributes = models.JSONField(default=dict, blank=True)
     variant_signature = models.CharField(max_length=255, blank=True, default="", db_index=True)
     attributes_price_delta = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+
+class Favorite(models.Model):
+    favorite_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="favorites"
+    )
+    device_uuid = models.CharField(max_length=100, null=True, blank=True, db_index=True)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="favorited_by")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    
+    class Meta:
+        unique_together = [("user", "product"), ("device_uuid", "product")]
+        indexes = [
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["device_uuid", "created_at"]),
+        ]
     
 # === BLOG SYSTEM (aligned with your patterns) ===
 class BlogPost(models.Model):

@@ -1,0 +1,15 @@
+[run]
+branch = True
+source =
+    admin_backend_final
+omit =
+    */migrations/*
+    */tests/*
+    */__init__.py
+
+[report]
+show_missing = True
+skip_covered = True
+
+
+
