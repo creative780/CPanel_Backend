@@ -6,12 +6,37 @@ from django.utils.text import slugify
 
 def populate_slugs(apps, schema_editor):
     """Populate slug field for existing ProductSEO records using raw SQL"""
-    Product = apps.get_model('admin_backend_final', 'Product')
-    ProductSEO = apps.get_model('admin_backend_final', 'ProductSEO')
-    
-    # Use raw SQL to avoid FieldError since model state doesn't have slug yet
+    # Check if slug column exists first
+    db_table = 'admin_backend_final_productseo'
     with schema_editor.connection.cursor() as cursor:
-        # Get all ProductSEO records with their products
+        # Check if slug column exists
+        slug_exists = False
+        if schema_editor.connection.vendor == 'postgresql':
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name=%s AND column_name='slug'
+            """, [db_table])
+            slug_exists = cursor.fetchone() is not None
+        elif schema_editor.connection.vendor == 'mysql':
+            cursor.execute("""
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA=DATABASE() 
+                AND TABLE_NAME=%s AND COLUMN_NAME='slug'
+            """, [db_table])
+            slug_exists = cursor.fetchone() is not None
+        else:  # sqlite
+            cursor.execute("PRAGMA table_info(admin_backend_final_productseo)")
+            columns = [row[1] for row in cursor.fetchall()]
+            slug_exists = 'slug' in columns
+        
+        if not slug_exists:
+            # Column doesn't exist yet, skip population
+            # The column will be added by the state_operations
+            return
+        
+        # Get all ProductSEO records with their products (only those without slugs)
         if schema_editor.connection.vendor == 'sqlite':
             cursor.execute("""
                 SELECT ps.seo_id, p.product_id, p.title
@@ -72,25 +97,18 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Use SeparateDatabaseAndState to update Django's state without modifying DB
-        # since the column already exists in the database
-        migrations.SeparateDatabaseAndState(
-            database_operations=[
-                # Populate slugs using raw SQL (avoids FieldError)
-                migrations.RunPython(populate_slugs, migrations.RunPython.noop),
-            ],
-            state_operations=[
-                # Update Django's migration state to include the slug field
-                migrations.AddField(
-                    model_name='productseo',
-                    name='slug',
-                    field=models.SlugField(blank=True, max_length=255, null=True),
-                ),
-                migrations.AlterField(
-                    model_name='productseo',
-                    name='slug',
-                    field=models.SlugField(max_length=255, db_index=True),
-                ),
-            ],
+        # First, add the slug column to the database if it doesn't exist
+        migrations.AddField(
+            model_name='productseo',
+            name='slug',
+            field=models.SlugField(blank=True, max_length=255, null=True),
+        ),
+        # Then populate it with data
+        migrations.RunPython(populate_slugs, migrations.RunPython.noop),
+        # Finally, alter it to add the db_index
+        migrations.AlterField(
+            model_name='productseo',
+            name='slug',
+            field=models.SlugField(max_length=255, db_index=True),
         ),
     ]
