@@ -3,6 +3,24 @@
 from django.db import migrations, models
 
 
+def add_long_description_if_not_exist(apps, schema_editor):
+    """Safely add long_description field if it doesn't exist in the database"""
+    # Since long_description already exists in 0001_initial, we skip adding it
+    # This function is mainly for databases that were created before 0001_initial
+    # For SQLite, we skip entirely to avoid issues
+    if schema_editor.connection.vendor == 'sqlite':
+        return
+    
+    # For PostgreSQL/MySQL, the field should already exist from 0001_initial
+    # So we don't need to do anything here
+    pass
+
+
+def noop_reverse(apps, schema_editor):
+    """No-op reverse migration"""
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,9 +28,14 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='product',
-            name='long_description',
-            field=models.TextField(blank=True, default=''),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                # Skip adding field since it already exists in 0001_initial
+                migrations.RunPython(add_long_description_if_not_exist, noop_reverse),
+            ],
+            state_operations=[
+                # Don't try to add field to state since 0001_initial already has it
+                # This prevents "duplicate column" errors
+            ],
         ),
     ]

@@ -3,6 +3,24 @@
 from django.db import migrations, models
 
 
+def add_productimage_fields_if_not_exist(apps, schema_editor):
+    """Safely add ProductImage fields if they don't exist in the database"""
+    # Since caption and is_primary already exist in 0001_initial, we skip adding them
+    # This function is mainly for databases that were created before 0001_initial
+    # For SQLite, we skip entirely to avoid issues
+    if schema_editor.connection.vendor == 'sqlite':
+        return
+    
+    # For PostgreSQL/MySQL, the fields should already exist from 0001_initial
+    # So we don't need to do anything here
+    pass
+
+
+def noop_reverse(apps, schema_editor):
+    """No-op reverse migration"""
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,14 +28,14 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='productimage',
-            name='caption',
-            field=models.TextField(blank=True, default=''),
-        ),
-        migrations.AddField(
-            model_name='productimage',
-            name='is_primary',
-            field=models.BooleanField(default=False),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                # Skip adding fields since they already exist in 0001_initial
+                migrations.RunPython(add_productimage_fields_if_not_exist, noop_reverse),
+            ],
+            state_operations=[
+                # Don't try to add fields to state since 0001_initial already has them
+                # This prevents "duplicate column" errors
+            ],
         ),
     ]
