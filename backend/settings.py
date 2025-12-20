@@ -45,6 +45,7 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
     "localhost",
     "app.click2print.store",
+    "app.crm.click2print.store",  # CRM admin panel
     "api.click2print.store",
     "click2print.store",
 ] + [h.strip() for h in os.getenv("ALLOWED_HOSTS_EXTRA", "").split(",") if h.strip()]
@@ -178,6 +179,7 @@ if not CORS_ALLOW_ALL_ORIGINS:
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "https://app.click2print.store",
+        "https://app.crm.click2print.store",  # CRM admin panel
         "https://api.click2print.store",
         "https://click2print.store",
         "https://www.click2print.store",
@@ -209,6 +211,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:3000",
     "https://app.click2print.store",
+    "https://app.crm.click2print.store",  # CRM admin panel
     "https://api.click2print.store",
     "https://click2print.store",
     "https://www.click2print.store",
