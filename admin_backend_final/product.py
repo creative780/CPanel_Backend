@@ -9,7 +9,7 @@ from typing import Optional
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.db import transaction, IntegrityError
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 
 # Django REST Framework
 from rest_framework import status
@@ -770,7 +770,23 @@ class ShowProductsAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def get(self, request):
-        products = list(Product.objects.all().order_by('order'))
+        # Extract search parameter
+        search = request.GET.get('search', '').strip()
+        
+        # Start with base queryset
+        products_qs = Product.objects.all()
+        
+        # Apply search filter if provided
+        if search:
+            products_qs = products_qs.filter(
+                Q(title__icontains=search) | 
+                Q(product_id__icontains=search) |
+                Q(long_description__icontains=search)
+            )
+        
+        # Order and convert to list
+        products = list(products_qs.order_by('order'))
+        
         if not products:
             return Response([], status=status.HTTP_200_OK)
 
