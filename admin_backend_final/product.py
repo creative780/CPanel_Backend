@@ -307,19 +307,30 @@ def save_product_images(data, product):
 
     made_rels = []                # keep created/ensured ProductImage rels to decide primary later
     requested_primary_imgid = None
+    processed_image_ids = set()   # Track which image_ids we've processed
 
     if images_with_meta:
         for row in images_with_meta:
             # Resolve or create Image
             img_obj = None
             img_id = row.get("image_id")
+            data_url = row.get("dataUrl")
 
             try:
-                if isinstance(row.get("dataUrl"), str) and row["dataUrl"].startswith("data:image/"):
+                # Priority 1: If dataUrl provided, create/replace image
+                if isinstance(data_url, str) and data_url.startswith("data:image/"):
+                    # If image_id is also provided, this is a REPLACEMENT - delete old relation first
+                    if img_id:
+                        # Delete the old ProductImage relation to prevent duplicates
+                        ProductImage.objects.filter(
+                            product=product,
+                            image__image_id=img_id
+                        ).delete()
+                    
                     # Create new image from dataUrl
                     tags_list = _normalize_tags(row.get("tags"))
                     img_obj = save_image(
-                        row["dataUrl"],
+                        data_url,
                         alt_text=row.get("alt") or 'Product image',
                         tags=",".join(tags_list),
                         linked_table='product',
@@ -328,55 +339,65 @@ def save_product_images(data, product):
                     )
                     # NOTE: caption is NOT on Image; it's on ProductImage (relation), updated below.
 
+                # Priority 2: If image_id provided (and no dataUrl), update existing image metadata
                 elif img_id:
                     img_obj = Image.objects.filter(pk=img_id).first()
-                    if img_obj and not force_replace and img_id in existing_rels_by_imgid:
-                        # metadata update on existing (only fields living on Image)
-                        dirty = False
-                        if "alt" in row and hasattr(img_obj, "alt_text"):
-                            img_obj.alt_text = row.get("alt") or ""
-                            dirty = True
-                        if "tags" in row and hasattr(img_obj, "tags"):
-                            img_obj.tags = ",".join(_normalize_tags(row.get("tags")))
-                            dirty = True
-                        if dirty:
-                            try:
-                                img_obj.save()
-                            except Exception:
-                                fields = []
-                                for f in ("alt_text", "tags"):
-                                    if hasattr(img_obj, f):
-                                        fields.append(f)
-                                if fields:
-                                    img_obj.save(update_fields=fields)
-
-                        # NEW: caption now lives on the ProductImage relation
-                        rel = existing_rels_by_imgid[img_id]
-                        if "caption" in row:
-                            rel.caption = row.get("caption") or ""
-                            try:
-                                rel.save(update_fields=["caption"])
-                            except Exception:
-                                rel.save()
+                    if img_obj:
+                        # Update metadata on existing Image (only if not force replacing)
+                        if not force_replace:
+                            dirty = False
+                            if "alt" in row and hasattr(img_obj, "alt_text"):
+                                new_alt = row.get("alt") or ""
+                                if img_obj.alt_text != new_alt:
+                                    img_obj.alt_text = new_alt
+                                    dirty = True
+                            if "tags" in row and hasattr(img_obj, "tags"):
+                                new_tags_list = _normalize_tags(row.get("tags"))
+                                # Compare tags lists (handles JSONField properly)
+                                current_tags_list = _normalize_tags(img_obj.tags) if img_obj.tags else []
+                                if set(new_tags_list) != set(current_tags_list):
+                                    img_obj.tags = new_tags_list  # Store as list for JSONField
+                                    dirty = True
+                            if dirty:
+                                try:
+                                    img_obj.save()
+                                except Exception:
+                                    fields = []
+                                    for f in ("alt_text", "tags"):
+                                        if hasattr(img_obj, f):
+                                            fields.append(f)
+                                    if fields:
+                                        img_obj.save(update_fields=fields)
                 else:
-                    # Neither dataUrl nor image_id => nothing we can do here
+                    # Neither dataUrl nor image_id => skip this row
                     continue
 
                 if not img_obj:
                     continue
 
-                # Ensure relation exists
-                rel, _ = ProductImage.objects.get_or_create(product=product, image=img_obj)
-
-                # NEW: store per-product caption on the relation
+                # Ensure ProductImage relation exists (get or create)
+                rel, rel_created = ProductImage.objects.get_or_create(
+                    product=product,
+                    image=img_obj,
+                    defaults={"caption": row.get("caption") or ""}
+                )
+                
+                # Update caption on the relation (always update, not just on create)
                 if "caption" in row:
-                    rel.caption = row.get("caption") or ""
-                    try:
-                        rel.save(update_fields=["caption"])
-                    except Exception:
-                        rel.save()
+                    new_caption = row.get("caption") or ""
+                    if rel.caption != new_caption:
+                        rel.caption = new_caption
+                        try:
+                            rel.save(update_fields=["caption"])
+                        except Exception:
+                            rel.save()
 
                 made_rels.append(rel)
+                
+                # Track which image_ids we've processed (for deletion of removed images)
+                final_img_id = getattr(img_obj, "image_id", None)
+                if final_img_id:
+                    processed_image_ids.add(final_img_id)
 
                 # Track requested primary (we enforce after loop)
                 if row.get("is_primary") is True:
@@ -414,6 +435,23 @@ def save_product_images(data, product):
             except Exception:
                 logger.exception("Image save error (non-DB); skipping this image")
                 continue
+
+    # Delete ProductImage relations that are NOT in the payload (images that were removed)
+    # Only do this if we're not force replacing (force_replace already deletes everything)
+    if not force_replace and images_with_meta:
+        try:
+            # Get all current ProductImage relations for this product
+            all_current_rels = ProductImage.objects.filter(product=product).select_related("image")
+            
+            # Delete relations whose image_id is not in processed_image_ids
+            for rel in all_current_rels:
+                img_id = getattr(rel.image, "image_id", None)
+                if img_id and img_id not in processed_image_ids:
+                    # This image was removed from the frontend, delete the relation
+                    rel.delete()
+                    logger.info(f"Deleted ProductImage relation for removed image {img_id} on product {product.product_id}")
+        except Exception:
+            logger.exception("Error deleting removed ProductImage relations; continuing")
 
     # Enforce a single primary if caller requested one
     if requested_primary_imgid:
