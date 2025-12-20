@@ -817,7 +817,7 @@ class ShowProductsAPIView(APIView):
         # --- inventory ---
         inv_by_pk = {}
         for inv in ProductInventory.objects.filter(product__in=products).only(
-            'product_id', 'stock_status', 'stock_quantity'
+            'product_id', 'stock_status', 'stock_quantity', 'low_stock_alert'
         ):
             inv_by_pk[inv.product_id] = inv
 
@@ -860,6 +860,7 @@ class ShowProductsAPIView(APIView):
             inv = inv_by_pk.get(p.pk)
             stock_status = getattr(inv, "stock_status", None)
             stock_quantity = getattr(inv, "stock_quantity", None)
+            low_stock_alert = getattr(inv, "low_stock_alert", None)
 
             out.append({
                 "id": p.product_id,
@@ -869,6 +870,7 @@ class ShowProductsAPIView(APIView):
                 "subcategories": subcategories,        # unique list
                 "stock_status": stock_status,
                 "stock_quantity": stock_quantity,
+                "low_stock_alert": low_stock_alert,
                 "price": str(p.price),
                 "printing_methods": list(pm_by_pk.get(p.pk, set())),
                 # NEW
