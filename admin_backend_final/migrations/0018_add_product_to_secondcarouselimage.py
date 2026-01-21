@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('admin_backend_final', '0015_merge_20251216_0441'),
+        ('admin_backend_final', '0017_alter_firstcarouselimage_product'),
     ]
 
     operations = [
