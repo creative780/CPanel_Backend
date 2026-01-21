@@ -1,8 +1,11 @@
 
 # Standard Library
 import json
+import logging
 import re
 import traceback
+
+logger = logging.getLogger(__name__)
 
 # Django
 from django.utils import timezone
@@ -598,37 +601,70 @@ def update_notification_status(request):
 @permission_classes([FrontendOnlyPermission])
 @parser_classes([MultiPartParser, FormParser, JSONParser])
 def update_image(request, image_id):
+    from PIL import Image as PILImage
+    from io import BytesIO
+    from django.db import transaction
+    
     try:
         image = Image.objects.get(image_id=image_id)
     except ObjectDoesNotExist:
         return Response({'error': 'Image not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    uploaded = request.FILES.get('image_file')
-    if uploaded:
-        image.image_file = uploaded
+    try:
+        with transaction.atomic():
+            uploaded = request.FILES.get('image_file')
+            if uploaded:
+                # Read the uploaded file content once
+                uploaded.seek(0)  # Reset file pointer to beginning
+                img_data = uploaded.read()
+                
+                # Get dimensions from the image data
+                img = PILImage.open(BytesIO(img_data))
+                img.load()  # Force decode to catch truncated files early
+                width, height = img.size
+                
+                # Create a new ContentFile from the same data for saving
+                from django.core.files.base import ContentFile
+                filename = getattr(uploaded, 'name', None) or f"{image.image_id}.jpg"
+                # Ensure filename doesn't have path separators
+                filename = filename.split('/')[-1].split('\\')[-1]
+                
+                # Update image file and dimensions using the same data
+                image.image_file.save(filename, ContentFile(img_data), save=False)
+                image.width = width
+                image.height = height
 
-    alt_text = request.data.get('alt_text', None)
-    if alt_text is not None:
-        image.alt_text = alt_text
+            alt_text = request.data.get('alt_text', None)
+            if alt_text is not None:
+                image.alt_text = alt_text
 
-    tags_raw = request.data.get('tags', None)
-    if tags_raw is not None:
-        if isinstance(tags_raw, list):
-            image.tags = tags_raw
-        elif isinstance(tags_raw, str):
-            try:
-                image.tags = json.loads(tags_raw)
-            except json.JSONDecodeError:
-                cleaned = [t.strip() for t in tags_raw.split(',') if t.strip()]
-                image.tags = cleaned
+            tags_raw = request.data.get('tags', None)
+            if tags_raw is not None:
+                if isinstance(tags_raw, list):
+                    image.tags = tags_raw
+                elif isinstance(tags_raw, str):
+                    try:
+                        image.tags = json.loads(tags_raw)
+                    except json.JSONDecodeError:
+                        cleaned = [t.strip() for t in tags_raw.split(',') if t.strip()]
+                        image.tags = cleaned
 
-    image.save()
+            image.save()
 
-    return Response({
-        'message': 'Image updated successfully',
-        'url': image.url,
-        'image_id': image.image_id,
-        'alt_text': image.alt_text,
-        'tags': image.tags,
-    }, status=status.HTTP_200_OK)
+        return Response({
+            'message': 'Image updated successfully',
+            'url': image.url,
+            'image_id': image.image_id,
+            'alt_text': image.alt_text,
+            'tags': image.tags,
+            'width': image.width,
+            'height': image.height,
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.exception(f"Failed to update image {image_id}: {e}")
+        return Response({
+            'error': 'Database error while updating image',
+            'detail': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
