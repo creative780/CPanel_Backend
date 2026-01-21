@@ -921,6 +921,17 @@ class FirstCarouselImage(models.Model):
         related_name='first_carousel_images',
     )
 
+    # Product foreign key for product-based carousel items
+    product = models.ForeignKey(
+        'Product',
+        to_field='product_id',  # use CharField PK
+        db_column='product_id',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='first_carousel_images',
+    )
+
     caption = models.CharField(max_length=255, default="", blank=True)
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -946,6 +957,17 @@ class SecondCarouselImage(models.Model):
         'SubCategory',
         to_field='subcategory_id',
         db_column='subcategory_id',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='second_carousel_images',
+    )
+
+    # Product foreign key for product-based carousel items
+    product = models.ForeignKey(
+        'Product',
+        to_field='product_id',  # use CharField PK
+        db_column='product_id',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

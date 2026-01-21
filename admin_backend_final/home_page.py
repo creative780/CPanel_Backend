@@ -18,6 +18,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.db import transaction
+from django.conf import settings
 import json, traceback
 
 class FirstCarouselAPIView(APIView):
@@ -36,7 +37,7 @@ class FirstCarouselAPIView(APIView):
             images = (
                 carousel.images
                 .order_by("order")
-                .select_related("image", "subcategory")
+                .select_related("image", "subcategory", "product")
                 .all()
             )
 
@@ -50,10 +51,19 @@ class FirstCarouselAPIView(APIView):
                         'slug': getattr(img.subcategory, 'slug', ''),      # present if you add slug later
                     }
 
+                # Add product info
+                product_obj = None
+                if img.product:
+                    product_obj = {
+                        'id': img.product.product_id,
+                        'name': img.product.title,
+                    }
+
                 image_data.append({
                     'src': img.image.image_file.url if img.image and img.image.image_file else '',
                     'title': img.title,
-                    'subcategory': subcategory_obj,
+                    'subcategory': subcategory_obj,  # keep for backward compatibility
+                    'product': product_obj,  # NEW
                 })
 
             return Response({
@@ -72,22 +82,38 @@ class FirstCarouselAPIView(APIView):
             data = json.loads(request.body or "{}")
             title = data.get('title', '')
             description = data.get('description', '')
-            raw_images = data.get('images', [])
+            # Accept both 'images' (legacy) and 'items' (new format) for smooth transition
+            raw_images = data.get('images', []) or data.get('items', [])
+
+            print(f"📥 POST /api/first-carousel/ - Received {len(raw_images)} items")
+            print(f"   Title: {title}")
+            print(f"   Description: {description[:50]}..." if description else "   Description: (empty)")
 
             # Single-instance reset (unchanged)
+            deleted_count = FirstCarousel.objects.all().count()
             FirstCarousel.objects.all().delete()
+            print(f"🗑️  Deleted {deleted_count} existing carousel(s)")
 
             carousel = FirstCarousel.objects.create(
                 title=title,
                 description=description
             )
+            print(f"✅ Created new carousel (ID: {carousel.id})")
+
+            saved_count = 0
+            skipped_count = 0
 
             for i, img_data in enumerate(raw_images):
                 if not isinstance(img_data, dict):
+                    print(f"   ⚠️  Item {i}: Skipped (not a dict)")
+                    skipped_count += 1
                     continue
 
                 img_src = img_data.get('src')
                 img_title = img_data.get('title') or f'Product {i + 1}'
+                product_id = img_data.get('product_id')
+                
+                print(f"   📦 Item {i}: title='{img_title}', product_id={product_id}, src_length={len(str(img_src)) if img_src else 0}")
 
                 # Prefer subcategory_id; accept legacy category_id if client hasn't updated yet
                 subcategory_key = img_data.get('subcategory_id') or img_data.get('category_id')
@@ -95,19 +121,65 @@ class FirstCarouselAPIView(APIView):
                 if subcategory_key:
                     subcategory = SubCategory.objects.filter(pk=subcategory_key).first()
 
-                # Reuse existing /uploads/ optimization
-                if isinstance(img_src, str) and img_src.startswith('/uploads/'):
-                    existing_image = Image.objects.filter(
-                        image_file=img_src.replace('/uploads/', 'uploads/')
-                    ).first()
+                # Handle product_id (NEW)
+                product = None
+                if product_id:
+                    product = Product.objects.filter(product_id=product_id).first()
+                    if not product:
+                        print(f"      ⚠️  Product {product_id} not found in database")
+
+                # Reuse existing /uploads/ or /media/uploads/ optimization
+                # Handle both /uploads/ and /media/uploads/ paths
+                if isinstance(img_src, str) and (img_src.startswith('/uploads/') or img_src.startswith('/media/uploads/')):
+                    # Normalize path: /media/uploads/xxx -> uploads/xxx, /uploads/xxx -> uploads/xxx
+                    normalized_path = img_src.replace('/media/uploads/', 'uploads/').replace('/uploads/', 'uploads/')
+                    existing_image = Image.objects.filter(image_file=normalized_path).first()
+                    
                     if existing_image:
                         FirstCarouselImage.objects.create(
                             carousel=carousel,
                             image=existing_image,
                             title=img_title,
-                            subcategory=subcategory,
+                            subcategory=subcategory,  # keep for backward compatibility
+                            product=product,  # NEW
                             order=i
                         )
+                        saved_count += 1
+                        print(f"      ✅ Saved using existing image (ID: {existing_image.image_id})")
+                    else:
+                        # Try to construct full URL and fetch it
+                        base_url = getattr(settings, 'DATA_API_BASE', 'http://127.0.0.1:8000').rstrip('/api')
+                        full_url = f"{base_url}{img_src}"
+                        print(f"      🔄 Image not in DB, trying to fetch from URL: {full_url}")
+                        
+                        # Try to save from URL
+                        saved_image = save_image(
+                            file_or_base64=full_url,
+                            alt_text="Carousel Image",
+                            tags="carousel",
+                            linked_table="FirstCarousel",
+                            linked_id=str(carousel.id),
+                            linked_page="first-carousel"
+                        )
+                        if saved_image:
+                            FirstCarouselImage.objects.create(
+                                carousel=carousel,
+                                image=saved_image,
+                                title=img_title,
+                                subcategory=subcategory,
+                                product=product,
+                                order=i
+                            )
+                            saved_count += 1
+                            print(f"      ✅ Saved by fetching from URL (ID: {saved_image.image_id if hasattr(saved_image, 'image_id') else 'N/A'})")
+                        else:
+                            print(f"      ⚠️  Failed to fetch/save image from URL: {full_url}")
+                            skipped_count += 1
+                    continue
+
+                if not img_src:
+                    print(f"      ⚠️  No image source provided")
+                    skipped_count += 1
                     continue
 
                 saved_image = save_image(
@@ -123,11 +195,23 @@ class FirstCarouselAPIView(APIView):
                         carousel=carousel,
                         image=saved_image,
                         title=img_title,
-                        subcategory=subcategory,
+                        subcategory=subcategory,  # keep for backward compatibility
+                        product=product,  # NEW
                         order=i
                     )
+                    saved_count += 1
+                    print(f"      ✅ Saved new image (ID: {saved_image.image_id if hasattr(saved_image, 'image_id') else 'N/A'})")
+                else:
+                    print(f"      ❌ Image save failed")
+                    skipped_count += 1
 
-            return Response({'message': '✅ First Carousel data saved successfully'}, status=status.HTTP_200_OK)
+            print(f"📊 Summary: {saved_count} saved, {skipped_count} skipped out of {len(raw_images)} total")
+            return Response({
+                'message': '✅ First Carousel data saved successfully',
+                'saved_count': saved_count,
+                'skipped_count': skipped_count,
+                'total_count': len(raw_images)
+            }, status=status.HTTP_200_OK)
 
         except Exception as e:
             print("❌ POST Error:", traceback.format_exc())
@@ -150,7 +234,7 @@ class SecondCarouselAPIView(APIView):
             images = (
                 carousel.images
                 .order_by("order")
-                .select_related("image", "subcategory")
+                .select_related("image", "subcategory", "product")
                 .all()
             )
 
@@ -177,10 +261,19 @@ class SecondCarouselAPIView(APIView):
                         print(f"❌ Error getting subcategory for SecondCarouselImage {img.id}: {e}")
                         subcategory_obj = None
 
+                # Add product info
+                product_obj = None
+                if img.product:
+                    product_obj = {
+                        'id': img.product.product_id,
+                        'name': img.product.title,
+                    }
+
                 image_data.append({
                     'src': img.image.image_file.url if img.image and img.image.image_file else '',
                     'title': img.title,
-                    'subcategory': subcategory_obj,  # Will be None if no subcategory linked or invalid
+                    'subcategory': subcategory_obj,  # keep for backward compatibility
+                    'product': product_obj,  # NEW
                 })
 
             return Response({
@@ -199,42 +292,96 @@ class SecondCarouselAPIView(APIView):
             data = json.loads(request.body or "{}")
             title = data.get('title', '')
             description = data.get('description', '')
-            raw_images = data.get('images', [])
+            raw_images = data.get('images', []) or data.get('items', [])
 
-            # Single-instance reset (unchanged)
+            print(f"📥 POST /api/second-carousel/ - Received {len(raw_images)} items")
+            print(f"   Title: {title}")
+            print(f"   Description: {description[:50]}...")
+
+            deleted_count = SecondCarousel.objects.all().count()
             SecondCarousel.objects.all().delete()
+            print(f"🗑️  Deleted {deleted_count} existing carousel(s)")
 
             carousel = SecondCarousel.objects.create(
                 title=title,
                 description=description
             )
+            print(f"✅ Created new carousel (ID: {carousel.id})")
+
+            saved_count = 0
+            skipped_count = 0
 
             for i, img_data in enumerate(raw_images):
                 if not isinstance(img_data, dict):
+                    print(f"      ⚠️  Item {i}: Invalid data format, skipping.")
+                    skipped_count += 1
                     continue
 
                 img_src = img_data.get('src')
                 img_title = img_data.get('title') or f'Product {i + 1}'
+                product_id = img_data.get('product_id')
 
-                # Prefer subcategory_id; accept legacy category_id
+                print(f"   📦 Item {i}: title='{img_title}', product_id={product_id}, src_length={len(str(img_src)) if img_src else 0}")
+
                 subcategory_key = img_data.get('subcategory_id') or img_data.get('category_id')
                 subcategory = None
                 if subcategory_key:
                     subcategory = SubCategory.objects.filter(pk=subcategory_key).first()
 
-                # Reuse existing /uploads/ optimization
-                if isinstance(img_src, str) and img_src.startswith('/uploads/'):
-                    existing_image = Image.objects.filter(
-                        image_file=img_src.replace('/uploads/', 'uploads/')
-                    ).first()
+                product = None
+                if product_id:
+                    product = Product.objects.filter(product_id=product_id).first()
+                    if not product:
+                        print(f"      ⚠️  Product {product_id} not found in database")
+
+                # Reuse existing /uploads/ or /media/uploads/ optimization
+                if isinstance(img_src, str) and (img_src.startswith('/uploads/') or img_src.startswith('/media/uploads/')):
+                    normalized_path = img_src.replace('/media/uploads/', 'uploads/').replace('/uploads/', 'uploads/')
+                    existing_image = Image.objects.filter(image_file=normalized_path).first()
+                    
                     if existing_image:
                         SecondCarouselImage.objects.create(
                             carousel=carousel,
                             image=existing_image,
                             title=img_title,
                             subcategory=subcategory,
+                            product=product,
                             order=i
                         )
+                        saved_count += 1
+                        print(f"      ✅ Saved using existing image (ID: {existing_image.image_id})")
+                    else:
+                        base_url = getattr(settings, 'DATA_API_BASE', 'http://127.0.0.1:8000').rstrip('/api')
+                        full_url = f"{base_url}{img_src}"
+                        print(f"      🔄 Image not in DB, trying to fetch from URL: {full_url}")
+                        
+                        saved_image = save_image(
+                            file_or_base64=full_url,
+                            alt_text="Carousel Image",
+                            tags="carousel",
+                            linked_table="SecondCarousel",
+                            linked_id=str(carousel.id),
+                            linked_page="second-carousel"
+                        )
+                        if saved_image:
+                            SecondCarouselImage.objects.create(
+                                carousel=carousel,
+                                image=saved_image,
+                                title=img_title,
+                                subcategory=subcategory,
+                                product=product,
+                                order=i
+                            )
+                            saved_count += 1
+                            print(f"      ✅ Saved by fetching from URL (ID: {saved_image.image_id if hasattr(saved_image, 'image_id') else 'N/A'})")
+                        else:
+                            print(f"      ⚠️  Failed to fetch/save image from URL: {full_url}")
+                            skipped_count += 1
+                    continue
+
+                if not img_src:
+                    print(f"      ⚠️  No image source provided")
+                    skipped_count += 1
                     continue
 
                 saved_image = save_image(
@@ -251,10 +398,21 @@ class SecondCarouselAPIView(APIView):
                         image=saved_image,
                         title=img_title,
                         subcategory=subcategory,
+                        product=product,
                         order=i
                     )
+                    saved_count += 1
+                    print(f"      ✅ Saved new image (ID: {saved_image.image_id if hasattr(saved_image, 'image_id') else 'N/A'})")
+                else:
+                    print(f"      ❌ Image save failed")
+                    skipped_count += 1
 
-            return Response({'message': '✅ Second Carousel data saved successfully'}, status=status.HTTP_200_OK)
+            print(f"📊 Summary: {saved_count} saved, {skipped_count} skipped out of {len(raw_images)} total")
+            return Response({
+                'message': '✅ Second Carousel data saved successfully',
+                'saved_count': saved_count,
+                'skipped_count': skipped_count
+            }, status=status.HTTP_200_OK)
 
         except Exception as e:
             print("❌ POST Error:", traceback.format_exc())
