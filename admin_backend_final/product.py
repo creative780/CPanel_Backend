@@ -773,8 +773,10 @@ class ShowProductsAPIView(APIView):
         # Extract search parameter
         search = request.GET.get('search', '').strip()
         
-        # Start with base queryset
-        products_qs = Product.objects.all()
+        # Start with base queryset - exclude test products
+        products_qs = Product.objects.exclude(
+            Q(title__in=['fghjd', 'kela', 'amb kela', 'aaa', 'abid ali', 'amb amb kela', 'abid abid ali', 'amb kela kino'])
+        )
         
         # Apply search filter if provided
         if search:
