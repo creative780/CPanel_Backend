@@ -1,0 +1,75 @@
+2025-09-25 20:30:48,394 - INFO - Starting Creative Connect Monitoring Agent
+2025-09-25 20:30:48,395 - INFO - Enrolling device with server...
+2025-09-25 20:30:50,577 - INFO - Config saved to C:\Users\pc\.creative_connect_agent_config.json
+2025-09-25 20:30:50,578 - INFO - Device enrolled successfully! Device ID: dev_e233234e6315
+2025-09-25 20:30:50,578 - INFO - Agent running for device dev_e233234e6315
+2025-09-25 20:30:52,631 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:31:24,694 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:31:56,773 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:32:28,820 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:33:00,891 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:33:32,952 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:34:04,997 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:34:37,068 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:35:09,124 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:35:41,187 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:36:13,270 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:36:45,306 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:37:17,346 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:37:49,391 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:38:21,457 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:38:53,478 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:39:25,523 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:39:57,609 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:40:29,634 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:41:01,701 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:41:33,774 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:42:05,825 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:42:37,889 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:43:09,945 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:43:42,008 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:44:14,078 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:44:46,124 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:45:18,182 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:45:50,260 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:46:22,323 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:46:54,411 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:47:26,486 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:47:58,545 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:48:30,602 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:49:02,635 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:49:34,673 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:50:06,731 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:50:38,812 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:51:10,878 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:51:42,952 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:52:15,026 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:52:47,072 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:53:19,145 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:53:51,182 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:54:23,233 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:54:55,281 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:55:27,346 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:55:59,411 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:56:31,473 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:57:03,554 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:57:35,592 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:58:07,668 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:58:39,718 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 20:59:11,793 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 22:04:04,190 - ERROR - Heartbeat failed: 401 - {"detail":"Given token not valid for any token type","code":"token_not_valid","messages":[{"token_class":"AccessToken","token_type":"access","message":"Token is invalid or expired"}]}
+2025-09-25 22:04:36,236 - INFO - Agent stopped by user
+2025-09-25 22:07:58,825 - INFO - Starting Creative Connect Monitoring Agent
+2025-09-25 22:07:58,826 - INFO - Agent running for device dev_e233234e6315
+2025-09-25 22:08:01,015 - INFO - Heartbeat sent successfully
+2025-09-25 22:08:33,106 - INFO - Heartbeat sent successfully
+2025-09-25 22:09:05,272 - INFO - Heartbeat sent successfully
+2025-09-25 22:09:37,344 - INFO - Heartbeat sent successfully
+2025-09-25 22:10:09,481 - INFO - Heartbeat sent successfully
+2025-09-25 22:10:41,595 - INFO - Heartbeat sent successfully
+2025-09-25 22:11:13,695 - INFO - Heartbeat sent successfully
+2025-09-25 22:11:45,828 - INFO - Heartbeat sent successfully
+2025-09-25 22:12:17,889 - INFO - Heartbeat sent successfully
+2025-09-25 22:12:49,973 - INFO - Heartbeat sent successfully
+2025-09-25 22:13:22,089 - INFO - Heartbeat sent successfully
+2025-09-25 22:13:54,152 - INFO - Agent stopped by user

@@ -1,0 +1,84 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+db.sqlite3.backup_*
+*.backup
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Media files (if you want to exclude uploads)
+# media/
+
+# Video recordings and large media files
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+rec_*.mp4
+segment_*.mp4
+
+# Static files (uncomment if using collectstatic)
+# staticfiles/
+# static/
+
+# Coverage files
+.coverage
+coverage.xml
+htmlcov/
+
+# Logs directory
+logs/
+
+# Monitoring data (large directory with screenshots)
+monitoring_data/
+
+# Agent executables - deployed directly to server
+*.exe
+media/**/*.exe

@@ -1,0 +1,119 @@
+# Synapse homeserver configuration for CRM integration
+# This is a basic configuration - adjust as needed for production
+
+server_name: "chat.local"
+pid_file: /data/homeserver.pid
+web_client_location: https://element.io/
+
+# Database configuration
+database:
+  name: psycopg2
+  args:
+    user: synapse
+    password: synapse
+    database: synapse
+    host: synapse-db
+    port: 5432
+    cp_min: 5
+    cp_max: 10
+  allow_unsafe_locale: true  # Allow non-C collation for development
+
+# Logging configuration (using defaults)
+# log_config: "/data/log.config"
+
+# Media storage
+media_store_path: "/data/media_store"
+uploads_path: "/data/uploads"
+max_upload_size: "50M"
+
+# Registration - enabled with shared secret for programmatic user creation
+enable_registration: true
+enable_registration_without_verification: true  # Safe because we use shared secret
+registration_shared_secret: "oiccOwYrwKbOMIwteHWWIOyFAhQQiiri"
+
+# Federation - disabled for internal use only
+federation_domain_whitelist: []
+
+# Reporting stats (required)
+report_stats: false
+
+# HTTP listeners - required for Synapse to accept connections
+listeners:
+  - port: 8008
+    type: http
+    tls: false
+    bind_addresses: ['::', '0.0.0.0']
+    x_forwarded: true
+    resources:
+      - names: [client, federation]
+        compress: false
+
+# Admin API - enabled for Django integration
+enable_admin_api: true
+admin_api_access_tokens:
+  - "1Y-j9HeK0RDMvP8zdYrsJSUmBQ00G5_-lnJi-AM-Q-Z4s-i8zCSgd26AAH1xTXYZx8dsFWAdxtMezFk4F_qGJw"  # Admin token for CRM integration
+
+# Rate limiting
+rc_message:
+  per_second: 0.2
+  burst_count: 10
+
+rc_registration:
+  per_second: 0.17
+  burst_count: 3
+
+rc_login:
+  address:
+    per_second: 0.17
+    burst_count: 3
+  account:
+    per_second: 0.17
+    burst_count: 3
+  failed_attempts:
+    per_second: 0.17
+    burst_count: 3
+
+# Presence
+presence:
+  enabled: true
+
+# Room settings
+# room_prejoin_state:
+#   - join_rules
+#   - history_visibility
+
+# Retention policy (optional - adjust as needed)
+retention:
+  enabled: false
+
+# Email configuration (optional - for notifications)
+# email:
+#   smtp_host: smtp.gmail.com
+#   smtp_port: 587
+#   smtp_user: your-email@gmail.com
+#   smtp_pass: your-password
+#   notif_from: "Your CRM <noreply@yourdomain.com>"
+
+# Signing key path
+signing_key_path: "/data/chat.local.signing.key"
+
+# Old signing keys (for key rotation)
+old_signing_keys: {}
+
+# Key server
+trusted_key_servers:
+  - server_name: "matrix.org"
+suppress_key_server_warning: true
+
+# Experimental features
+experimental_features:
+  msc3266_local_private_read_receipts: true
+
+# TURN server configuration for WebRTC calls
+# Configured to use coturn service in Docker Compose
+turn_uris:
+  - "turn:coturn:3478?transport=udp"
+  - "turn:coturn:3478?transport=tcp"
+turn_shared_secret: "2OzimVpRm5Jani7NM8VsqZpaP6rrUjZeZs8LBj1ud-4"  # Must match TURN_SHARED_SECRET in docker-compose.yml
+turn_user_lifetime: "1h"
+

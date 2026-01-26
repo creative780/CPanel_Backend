@@ -1,0 +1,173 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-crm}
+      POSTGRES_USER: ${POSTGRES_USER:-crm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crm}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crm}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    # Don't expose ports in production - only accessible within Docker network
+
+  synapse-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${SYNAPSE_POSTGRES_DB:-synapse}
+      POSTGRES_USER: ${SYNAPSE_POSTGRES_USER:-synapse}
+      POSTGRES_PASSWORD: ${SYNAPSE_POSTGRES_PASSWORD:-synapse}
+    volumes:
+      - synapse_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SYNAPSE_POSTGRES_USER:-synapse}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    # Don't expose ports in production - only accessible within Docker network
+
+  web:
+    build: .
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             python -m daphne -p 8000 -b 0.0.0.0 --application-close-timeout 30 crm_backend.asgi:application"
+    env_file:
+      - .env
+    volumes:
+      - ./media:/app/media
+      - ./staticfiles:/app/staticfiles
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    # Don't expose ports directly - use nginx as reverse proxy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  celery:
+    build: .
+    command: celery -A crm_backend worker -l info
+    env_file:
+      - .env
+    volumes:
+      - ./media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+  celery-beat:
+    build: .
+    command: celery -A crm_backend beat -l info
+    env_file:
+      - .env
+    volumes:
+      - ./media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./media/uploads:/usr/share/nginx/html/uploads:ro
+      - ./staticfiles:/usr/share/nginx/html/static:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+  synapse:
+    image: matrixdotorg/synapse:latest
+    container_name: synapse
+    user: "991:991"
+    ports:
+      - "8008:8008"
+      - "8448:8448"
+    volumes:
+      - synapse_data:/data
+      - ./synapse/homeserver.yaml:/data/homeserver.yaml:ro
+    environment:
+      - SYNAPSE_SERVER_NAME=${MATRIX_SERVER_NAME:-chat.local}
+      - SYNAPSE_REPORT_STATS=no
+    depends_on:
+      synapse-db:
+        condition: service_healthy
+    restart: unless-stopped
+    entrypoint: ["/start.py", "run", "--config-path", "/data/homeserver.yaml"]
+
+  coturn:
+    image: coturn/coturn:latest
+    container_name: coturn
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      # Large UDP port range for production TURN server
+      - "49152-65535:49152-65535/udp"
+    volumes:
+      - ./coturn/turnserver.conf:/etc/turnserver.conf:ro
+    environment:
+      - TURN_USERNAME=${TURN_USERNAME:-turnuser}
+      - TURN_PASSWORD=${TURN_PASSWORD:-turnpass}
+      - TURN_SHARED_SECRET=${TURN_SHARED_SECRET}
+      - TURN_REALM=${TURN_REALM:-localhost}
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  synapse_data:
+  synapse_db_data:
+  redis_data:
+
