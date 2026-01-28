@@ -1,0 +1,58 @@
+[Unit]
+Description=CRM Backend Gunicorn ASGI Server
+After=network.target redis.service
+Requires=network.target
+
+[Service]
+Type=notify
+User=root
+Group=root
+WorkingDirectory=/home/api.crm.click2print.store/public_html
+Environment="PATH=/home/api.crm.click2print.store/public_html/venv/bin"
+# Load environment variables from .env file
+EnvironmentFile=/home/api.crm.click2print.store/public_html/.env
+ExecStart=/home/api.crm.click2print.store/public_html/venv/bin/gunicorn \
+    crm_backend.asgi:application \
+    --bind 0.0.0.0:8003 \
+    --workers 4 \
+    --timeout 120 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --access-logfile /home/api.crm.click2print.store/public_html/logs/gunicorn_access.log \
+    --error-logfile /home/api.crm.click2print.store/public_html/logs/gunicorn_error.log \
+    --log-level info \
+    --pid /home/api.crm.click2print.store/public_html/logs/gunicorn.pid \
+    --config /home/api.crm.click2print.store/public_html/gunicorn_config.py
+
+# Restart settings
+Restart=always
+RestartSec=10
+StartLimitInterval=0
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=crm-backend-gunicorn
+
+[Install]
+WantedBy=multi-user.target
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

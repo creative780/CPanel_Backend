@@ -1,4 +1,5 @@
 [run]
+<<<<<<< HEAD
 branch = True
 source =
     admin_backend_final
@@ -10,6 +11,160 @@ omit =
 [report]
 show_missing = True
 skip_covered = True
+=======
+source = .
+omit =
+    */migrations/*
+    */venv/*
+    */.venv/*
+    */__pycache__/*
+    */tests/*
+    */test_*.py
+    */conftest.py
+    */manage.py
+    */settings*.py
+    */wsgi.py
+    */asgi.py
+    */celery.py
+    */admin.py
+    */apps.py
+    */urls.py
+    */routing.py
+    */consumers.py
+    */tasks.py
+    */signals.py
+    */management/commands/*
+    */clients/*
+    */utils/*
+    */services/*
+    */filters.py
+    */permissions.py
+    */serializers.py
+    */views.py
+    */models.py
+    */forms.py
+    */validators.py
+    */exceptions.py
+    */constants.py
+    */decorators.py
+    */middleware.py
+    */backends.py
+    */mixins.py
+    */managers.py
+    */querysets.py
+    */factories.py
+    */helpers.py
+    */fixtures/*
+    */static/*
+    */media/*
+    */templates/*
+    */htmlcov/*
+    */build/*
+    */dist/*
+    */node_modules/*
+    */__init__.py
+    */test*.py
+    */*_test.py
+    */*_tests.py
+    */tests.py
+    */test_*.py
+    */conftest.py
+    */manage.py
+    */settings*.py
+    */wsgi.py
+    */asgi.py
+    */celery.py
+    */admin.py
+    */apps.py
+    */urls.py
+    */routing.py
+    */consumers.py
+    */tasks.py
+    */signals.py
+    */management/commands/*
+    */clients/*
+    */utils/*
+    */services/*
+    */filters.py
+    */permissions.py
+    */serializers.py
+    */views.py
+    */models.py
+    */forms.py
+    */validators.py
+    */exceptions.py
+    */constants.py
+    */decorators.py
+    */middleware.py
+    */backends.py
+    */mixins.py
+    */managers.py
+    */querysets.py
+    */factories.py
+    */helpers.py
+    */fixtures/*
+    */static/*
+    */media/*
+    */templates/*
+    */htmlcov/*
+    */build/*
+    */dist/*
+    */node_modules/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod
+    @abc.abstractmethod
+    if False:
+    if True:
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod
+
+precision = 2
+show_missing = True
+skip_covered = False
+
+[html]
+directory = htmlcov
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+>>>>>>> 35aadaba0fc8b080e00f6f207c36c87010fcad7a
 
 
 

@@ -1,0 +1,79 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info
+dist
+build
+.eggs
+
+# Virtual environments
+venv
+.venv
+env
+ENV
+env.bak
+venv.bak
+
+# Environment files (should be mounted, not copied)
+.env
+.env.local
+.env.*.local
+env.production
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov
+.tox
+tests
+test_*.py
+*_test.py
+
+# Logs
+*.log
+logs
+*.log.*
+
+# Database
+*.sqlite3
+*.db
+
+# Media files (should be mounted as volume)
+media
+staticfiles
+
+# Documentation
+*.md
+!README.md
+
+# Docker
+Dockerfile
+docker-compose.yml
+docker-compose.*.yml
+.dockerignore
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Other
+.cache
+*.bak
+*.tmp
+
