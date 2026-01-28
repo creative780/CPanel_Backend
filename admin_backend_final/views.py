@@ -740,8 +740,8 @@ class DashboardStatisticsAPIView(APIView):
             thirty_days_ago = now - timedelta(days=30)
             sixty_days_ago = now - timedelta(days=60)
             
-            # Total Revenue: Sum of all completed orders
-            total_revenue_result = Orders.objects.filter(status='completed').aggregate(
+            # Total Revenue: Sum of all completed orders (case-insensitive)
+            total_revenue_result = Orders.objects.filter(status__iexact='completed').aggregate(
                 total=Sum('total_price')
             )
             total_revenue = float(total_revenue_result['total'] or 0)
@@ -749,7 +749,7 @@ class DashboardStatisticsAPIView(APIView):
             # Revenue for last 30 days
             revenue_last_30 = Orders.objects.filter(
                 order_date__gte=thirty_days_ago,
-                status='completed'
+                status__iexact='completed'
             ).aggregate(
                 total=Sum('total_price')
             )['total'] or 0
@@ -758,7 +758,7 @@ class DashboardStatisticsAPIView(APIView):
             revenue_prev_30 = Orders.objects.filter(
                 order_date__gte=sixty_days_ago,
                 order_date__lt=thirty_days_ago,
-                status='completed'
+                status__iexact='completed'
             ).aggregate(
                 total=Sum('total_price')
             )['total'] or 0

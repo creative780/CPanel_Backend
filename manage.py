@@ -6,17 +6,7 @@ import sys
 
 def main():
     """Run administrative tasks."""
-<<<<<<< HEAD
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
-=======
-    # Set UTF-8 encoding for Windows console
-    if sys.platform == 'win32':
-        import io
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-    
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'crm_backend.settings')
->>>>>>> 35aadaba0fc8b080e00f6f207c36c87010fcad7a
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

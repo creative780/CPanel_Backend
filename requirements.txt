@@ -26,4 +26,3 @@ pytest-django>=4.9.0
 pytest-cov>=5.0.0
 factory-boy>=3.3.0
 Faker>=30.0.0
-

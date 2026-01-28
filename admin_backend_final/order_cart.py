@@ -633,7 +633,8 @@ class ShowOrderAPIView(APIView):
                     "status": order.status,
                     "Address": address,
                     "email": email,
-                    "order_placed_on": order.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                    "order_placed_on": order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                    "notes": order.notes or "",
                 })
 
             return Response({"orders": orders_data}, status=status.HTTP_200_OK)
@@ -734,6 +735,28 @@ class EditOrderAPIView(APIView):
             if data.get("total_price") is not None:
                 order.total_price = Decimal(str(data["total_price"]))
             order.notes = data.get("notes", order.notes)
+            
+            # Handle order_date update
+            incoming_date = data.get("order_date")
+            if incoming_date:
+                from datetime import datetime
+                try:
+                    # Try parsing various date formats
+                    if isinstance(incoming_date, str):
+                        # Try ISO format first (2026-01-28T00:00:00 or 2026-01-28)
+                        for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%d', '%Y-%m-%d %H:%M:%S']:
+                            try:
+                                parsed_date = datetime.strptime(incoming_date.split('Z')[0], fmt)
+                                # Make timezone-aware if needed
+                                if timezone.is_naive(parsed_date):
+                                    parsed_date = timezone.make_aware(parsed_date)
+                                order.order_date = parsed_date
+                                break
+                            except ValueError:
+                                continue
+                except Exception as e:
+                    logger.warning(f"Failed to parse order_date '{incoming_date}': {e}")
+            
             order.save()
 
             # ----- Items (only rebuild if 'items' key is present) -----

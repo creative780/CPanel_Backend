@@ -530,6 +530,17 @@ def save_product_attributes(data, product):
     if not isinstance(attrs, list):
         attrs = []
 
+    # Enforce single default: only ONE option across ALL attributes can be is_default=True
+    found_default = False
+    for attr in attrs:
+        for opt in attr.get("options") or []:
+            if opt.get("is_default"):
+                if found_default:
+                    # Already have a default, clear this one
+                    opt["is_default"] = False
+                else:
+                    found_default = True
+
     # Helper: choose a safe, globally-unique attr_id
     def _safe_attr_id(requested, prefix):
         if requested:
