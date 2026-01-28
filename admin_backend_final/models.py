@@ -18,11 +18,44 @@ class User(AbstractUser):
     emirates_id = models.CharField(max_length=50, unique=True, blank=True, null=True)
     phone_number = models.CharField(max_length=20, blank=True, default="")
     address = models.TextField(blank=True, default="")
+    profile_picture = models.ForeignKey(
+        'Image',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='user_profiles'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.username or self.email or self.user_id
+
+class EmailVerificationCode(models.Model):
+    """
+    Stores verification codes for email verification.
+    Codes expire after 10 minutes and can only be used once.
+    """
+    code_id = models.CharField(primary_key=True, max_length=100)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='verification_codes')
+    email = models.EmailField(db_index=True)  # Email being verified
+    code = models.CharField(max_length=6)  # 6-digit code
+    is_used = models.BooleanField(default=False, db_index=True)
+    expires_at = models.DateTimeField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['user', 'is_used', 'expires_at']),
+            models.Index(fields=['email', 'is_used', 'expires_at']),
+        ]
+    
+    def is_expired(self):
+        from django.utils import timezone
+        return timezone.now() > self.expires_at
+    
+    def is_valid(self):
+        return not self.is_used and not self.is_expired()
     
 class Admin(models.Model):
     admin_id = models.CharField(primary_key=True, max_length=100)
@@ -68,19 +101,37 @@ class Image(models.Model):
     linked_id = models.CharField(max_length=100, blank=True, default="", db_index=True)
     linked_page = models.CharField(max_length=100, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     @property
     def url(self):
         """
         Fast and safe: avoid storage calls if file isn't set; handle storages
         that raise on missing file; never raise out.
+        Includes cache-busting parameter based on updated_at timestamp.
         """
         f = self.image_file
         if not f:
             return None
         try:
             # Some storages only compute .url when file exists
-            return getattr(f, "url", None)
+            base_url = getattr(f, "url", None)
+            if not base_url:
+                return None
+            
+            # Add cache-busting parameter based on updated_at timestamp
+            # This ensures browser cache is invalidated when image is updated
+            if self.updated_at:
+                # Convert updated_at to Unix timestamp for cache-busting
+                if timezone.is_aware(self.updated_at):
+                    timestamp = int(self.updated_at.timestamp())
+                else:
+                    timestamp = int(timezone.make_aware(self.updated_at).timestamp())
+                # Check if URL already has query parameters
+                separator = '&' if '?' in base_url else '?'
+                return f"{base_url}{separator}v={timestamp}"
+            
+            return base_url
         except Exception:
             # Catch broad here: some backends raise non-ValueError on missing keys
             return None
@@ -565,6 +616,7 @@ class Orders(models.Model):
     order_date = models.DateTimeField()
     status = models.CharField(max_length=50, choices=[
         ("pending", "Pending"),
+        ("processing", "Processing"),
         ("shipped", "Shipped"),
         ("completed", "Completed"),
         ("cancelled", "Cancelled"),

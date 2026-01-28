@@ -38,11 +38,16 @@ class FirstCarouselAPIView(APIView):
                 carousel.images
                 .order_by("order")
                 .select_related("image", "subcategory", "product")
+                .filter(product__isnull=False)  # Only include images with valid (non-deleted) products
                 .all()
             )
 
             image_data = []
             for img in images:
+                # Skip if product is null (safety check)
+                if not img.product:
+                    continue
+                    
                 subcategory_obj = None
                 if img.subcategory:
                     subcategory_obj = {
@@ -51,16 +56,32 @@ class FirstCarouselAPIView(APIView):
                         'slug': getattr(img.subcategory, 'slug', ''),      # present if you add slug later
                     }
 
-                # Add product info
+                # Add product info and get latest product image if available
                 product_obj = None
+                # Use Image.url property which includes cache-busting parameter
+                image_src = img.image.url if img.image else ''
+                
                 if img.product:
                     product_obj = {
                         'id': img.product.product_id,
                         'name': img.product.title,
                     }
+                    # If product is linked, try to get the latest primary image
+                    try:
+                        product_image = ProductImage.objects.filter(
+                            product=img.product,
+                            is_primary=True
+                        ).select_related('image').first()
+                        if product_image and product_image.image:
+                            # Use the product's latest primary image instead of stored carousel image
+                            # Image.url property includes cache-busting parameter
+                            image_src = product_image.image.url or ''
+                    except Exception as e:
+                        # If there's an error fetching product image, fall back to stored image
+                        print(f"⚠️  Error fetching product image for {img.product.product_id}: {e}")
 
                 image_data.append({
-                    'src': img.image.image_file.url if img.image and img.image.image_file else '',
+                    'src': image_src,
                     'title': img.title,
                     'subcategory': subcategory_obj,  # keep for backward compatibility
                     'product': product_obj,  # NEW
@@ -89,6 +110,28 @@ class FirstCarouselAPIView(APIView):
             print(f"   Title: {title}")
             print(f"   Description: {description[:50]}..." if description else "   Description: (empty)")
 
+            # Deduplicate by product_id - keep the last occurrence (most recent/updated)
+            # This ensures if a product is updated, only the latest version is in the carousel
+            seen_products = {}  # Maps product_id to (index, img_data)
+            deduplicated_images = []
+            
+            for idx, img_data in enumerate(raw_images):
+                if isinstance(img_data, dict):
+                    product_id = img_data.get('product_id')
+                    if product_id:
+                        # Track the latest occurrence of each product_id
+                        seen_products[product_id] = (idx, img_data)
+                    else:
+                        # Items without product_id are always added (custom images)
+                        deduplicated_images.append((idx, img_data))
+            
+            # Combine custom items and product items, sorted by original index to preserve order
+            all_items = list(seen_products.values()) + deduplicated_images
+            all_items.sort(key=lambda x: x[0])  # Sort by original index
+            deduplicated_images = [img_data for _, img_data in all_items]
+            
+            print(f"🔄 Deduplicated: {len(raw_images)} → {len(deduplicated_images)} items (removed {len(raw_images) - len(deduplicated_images)} duplicates)")
+
             # Single-instance reset (unchanged)
             deleted_count = FirstCarousel.objects.all().count()
             FirstCarousel.objects.all().delete()
@@ -103,7 +146,7 @@ class FirstCarouselAPIView(APIView):
             saved_count = 0
             skipped_count = 0
 
-            for i, img_data in enumerate(raw_images):
+            for i, img_data in enumerate(deduplicated_images):
                 if not isinstance(img_data, dict):
                     print(f"   ⚠️  Item {i}: Skipped (not a dict)")
                     skipped_count += 1
@@ -124,9 +167,15 @@ class FirstCarouselAPIView(APIView):
                 # Handle product_id (NEW)
                 product = None
                 if product_id:
+                    # Try exact match first
                     product = Product.objects.filter(product_id=product_id).first()
+                    # If not found, try case-insensitive match
                     if not product:
-                        print(f"      ⚠️  Product {product_id} not found in database")
+                        product = Product.objects.filter(product_id__iexact=str(product_id).strip()).first()
+                    if not product:
+                        print(f"      ⚠️  Product {product_id} not found in database - carousel item will be saved without product link")
+                    else:
+                        print(f"      ✅ Found product: {product.product_id} - {product.title}")
 
                 # Reuse existing /uploads/ or /media/uploads/ optimization
                 # Handle both /uploads/ and /media/uploads/ paths
@@ -177,8 +226,23 @@ class FirstCarouselAPIView(APIView):
                             skipped_count += 1
                     continue
 
+                # If no image source but product is provided, try to get product's primary image
+                if not img_src and product:
+                    try:
+                        product_image = ProductImage.objects.filter(
+                            product=product,
+                            is_primary=True
+                        ).select_related('image').first()
+                        if product_image and product_image.image:
+                            # Use Image.url property which includes cache-busting parameter
+                            img_src = product_image.image.url
+                            if img_src:
+                                print(f"      📷 Using product's primary image: {img_src}")
+                    except Exception as e:
+                        print(f"      ⚠️  Error fetching product image: {e}")
+                
                 if not img_src:
-                    print(f"      ⚠️  No image source provided")
+                    print(f"      ⚠️  No image source provided and no product image available - skipping item")
                     skipped_count += 1
                     continue
 
@@ -235,11 +299,16 @@ class SecondCarouselAPIView(APIView):
                 carousel.images
                 .order_by("order")
                 .select_related("image", "subcategory", "product")
+                .filter(product__isnull=False)  # Only include images with valid (non-deleted) products
                 .all()
             )
 
             image_data = []
             for img in images:
+                # Skip if product is null (safety check)
+                if not img.product:
+                    continue
+                    
                 subcategory_obj = None
                 if img.subcategory:
                     try:
@@ -261,16 +330,32 @@ class SecondCarouselAPIView(APIView):
                         print(f"❌ Error getting subcategory for SecondCarouselImage {img.id}: {e}")
                         subcategory_obj = None
 
-                # Add product info
+                # Add product info and get latest product image if available
                 product_obj = None
+                # Use Image.url property which includes cache-busting parameter
+                image_src = img.image.url if img.image else ''
+                
                 if img.product:
                     product_obj = {
                         'id': img.product.product_id,
                         'name': img.product.title,
                     }
+                    # If product is linked, try to get the latest primary image
+                    try:
+                        product_image = ProductImage.objects.filter(
+                            product=img.product,
+                            is_primary=True
+                        ).select_related('image').first()
+                        if product_image and product_image.image:
+                            # Use the product's latest primary image instead of stored carousel image
+                            # Image.url property includes cache-busting parameter
+                            image_src = product_image.image.url or ''
+                    except Exception as e:
+                        # If there's an error fetching product image, fall back to stored image
+                        print(f"⚠️  Error fetching product image for {img.product.product_id}: {e}")
 
                 image_data.append({
-                    'src': img.image.image_file.url if img.image and img.image.image_file else '',
+                    'src': image_src,
                     'title': img.title,
                     'subcategory': subcategory_obj,  # keep for backward compatibility
                     'product': product_obj,  # NEW
@@ -298,6 +383,28 @@ class SecondCarouselAPIView(APIView):
             print(f"   Title: {title}")
             print(f"   Description: {description[:50]}...")
 
+            # Deduplicate by product_id - keep the last occurrence (most recent/updated)
+            # This ensures if a product is updated, only the latest version is in the carousel
+            seen_products = {}  # Maps product_id to (index, img_data)
+            deduplicated_images = []
+            
+            for idx, img_data in enumerate(raw_images):
+                if isinstance(img_data, dict):
+                    product_id = img_data.get('product_id')
+                    if product_id:
+                        # Track the latest occurrence of each product_id
+                        seen_products[product_id] = (idx, img_data)
+                    else:
+                        # Items without product_id are always added (custom images)
+                        deduplicated_images.append((idx, img_data))
+            
+            # Combine custom items and product items, sorted by original index to preserve order
+            all_items = list(seen_products.values()) + deduplicated_images
+            all_items.sort(key=lambda x: x[0])  # Sort by original index
+            deduplicated_images = [img_data for _, img_data in all_items]
+            
+            print(f"🔄 Deduplicated: {len(raw_images)} → {len(deduplicated_images)} items (removed {len(raw_images) - len(deduplicated_images)} duplicates)")
+
             deleted_count = SecondCarousel.objects.all().count()
             SecondCarousel.objects.all().delete()
             print(f"🗑️  Deleted {deleted_count} existing carousel(s)")
@@ -311,7 +418,7 @@ class SecondCarouselAPIView(APIView):
             saved_count = 0
             skipped_count = 0
 
-            for i, img_data in enumerate(raw_images):
+            for i, img_data in enumerate(deduplicated_images):
                 if not isinstance(img_data, dict):
                     print(f"      ⚠️  Item {i}: Invalid data format, skipping.")
                     skipped_count += 1

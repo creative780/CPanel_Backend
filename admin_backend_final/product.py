@@ -4,11 +4,12 @@ import logging
 from decimal import Decimal
 from collections import defaultdict
 from django.db import DatabaseError
+from django.db.utils import OperationalError
 from typing import Optional
 # Django
 from django.http import Http404
 from django.shortcuts import get_object_or_404
-from django.db import transaction, IntegrityError
+from django.db import transaction, IntegrityError, connection
 from django.db.models import Prefetch, Q
 
 # Django REST Framework
@@ -750,18 +751,79 @@ class DeleteProductAPIView(APIView):
                 return Response({'error': 'No product IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
 
             products = list(Product.objects.filter(product_id__in=ids))
+            deleted_count = 0
+            failed_deletes = []
+            
             for product in products:
-                VariantCombination.objects.filter(variant__product=product).delete()
-                ProductVariant.objects.filter(product=product).delete()
-                ProductInventory.objects.filter(product=product).delete()
-                ShippingInfo.objects.filter(product=product).delete()
-                ProductSEO.objects.filter(product=product).delete()
-                ProductSubCategoryMap.objects.filter(product=product).delete()
-                ProductImage.objects.filter(product=product).delete()
-                Image.objects.filter(linked_table='product', linked_id=product.product_id).delete()
-                product.delete()
+                product_id = product.product_id
+                try:
+                    VariantCombination.objects.filter(variant__product=product).delete()
+                    ProductVariant.objects.filter(product=product).delete()
+                    ProductInventory.objects.filter(product=product).delete()
+                    ShippingInfo.objects.filter(product=product).delete()
+                    ProductSEO.objects.filter(product=product).delete()
+                    ProductSubCategoryMap.objects.filter(product=product).delete()
+                    ProductImage.objects.filter(product=product).delete()
+                    
+                    # Delete images using raw SQL to bypass ORM cascade checks for missing BlogImage table
+                    # Using raw SQL directly to avoid Django ORM trying to check related BlogImage objects
+                    try:
+                        with connection.cursor() as cursor:
+                            cursor.execute(
+                                "DELETE FROM admin_backend_final_image WHERE linked_table = %s AND linked_id = %s",
+                                ['product', product.product_id]
+                            )
+                            # Verify deletion
+                            rows_deleted = cursor.rowcount
+                            if rows_deleted > 0:
+                                logger.info(f"Deleted {rows_deleted} image(s) for product {product.product_id}")
+                    except Exception as sql_error:
+                        # If raw SQL fails, log but continue (image might not exist or table might not exist)
+                        logger.error(f"Failed to delete images for product {product.product_id}: {sql_error}", exc_info=True)
+                    
+                    # Delete carousel images that reference this product
+                    # FirstCarouselImage and SecondCarouselImage have on_delete=SET_NULL,
+                    # but we want to actually delete them to clean up carousels
+                    from .models import FirstCarouselImage, SecondCarouselImage
+                    FirstCarouselImage.objects.filter(product=product).delete()
+                    SecondCarouselImage.objects.filter(product=product).delete()
+                    logger.info(f"Cleaned up carousel images for product {product_id}")
+                    
+                    product.delete()
+                    deleted_count += 1
+                    logger.info(f"Successfully deleted product {product_id}")
+                except Exception as product_error:
+                    failed_deletes.append(product_id)
+                    logger.error(f"Failed to delete product {product_id}: {product_error}", exc_info=True)
+                    # Continue with other products instead of raising
+                    continue
 
-            return Response({'success': True, 'message': 'Products deleted'}, status=status.HTTP_200_OK)
+            # After loop, verify deletions
+            if failed_deletes:
+                logger.warning(f"Failed to delete {len(failed_deletes)} product(s): {failed_deletes}")
+                return Response({
+                    'success': False,
+                    'message': f'Deleted {deleted_count} product(s), but {len(failed_deletes)} failed',
+                    'deleted_count': deleted_count,
+                    'failed_ids': failed_deletes
+                }, status=status.HTTP_207_MULTI_STATUS)
+
+            # Verify products are actually deleted
+            remaining = Product.objects.filter(product_id__in=ids).count()
+            if remaining > 0:
+                logger.warning(f"Warning: {remaining} product(s) still exist after deletion attempt")
+                return Response({
+                    'success': False,
+                    'message': f'Deleted {deleted_count} product(s), but {remaining} still exist in database',
+                    'deleted_count': deleted_count,
+                    'remaining_count': remaining
+                }, status=status.HTTP_207_MULTI_STATUS)
+
+            return Response({
+                'success': True,
+                'message': f'Successfully deleted {deleted_count} product(s)',
+                'deleted_count': deleted_count
+            }, status=status.HTTP_200_OK)
         except Exception as e:
             logger.exception("DeleteProduct failed")
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -773,9 +835,13 @@ class ShowProductsAPIView(APIView):
         # Extract search parameter
         search = request.GET.get('search', '').strip()
         
-        # Start with base queryset - exclude test products
+        # Start with base queryset - exclude test products and hidden/inactive/deleted products
         products_qs = Product.objects.exclude(
             Q(title__in=['fghjd', 'kela', 'amb kela', 'aaa', 'abid ali', 'amb amb kela', 'abid abid ali', 'amb kela kino'])
+        ).exclude(
+            Q(status__iexact='hidden') | 
+            Q(status__iexact='inactive') |
+            Q(status__iexact='deleted')  # Safety measure for soft-deleted products
         )
         
         # Apply search filter if provided
@@ -922,7 +988,7 @@ class ShowSpecificProductAPIView(APIView):
             "name": product.title,
             "brand_title": product.brand,
             "price": str(product.price),
-            "discounted_price": str(product.discounted_price),
+            "discounted_price": str(product.discounted_price) if product.discounted_price is not None else None,
             "tax_rate": str(product.tax_rate) if product.tax_rate is not None else None,
             "price_calculator": product.price_calculator,
             "video_url": product.video_url,

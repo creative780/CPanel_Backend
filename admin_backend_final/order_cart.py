@@ -3,7 +3,10 @@ import json
 import hashlib
 import uuid
 import traceback
+import logging
 from decimal import Decimal, InvalidOperation
+
+logger = logging.getLogger(__name__)
 
 
 # Django
@@ -657,6 +660,7 @@ class DeleteOrderAPIView(APIView):
 
         deleted_count = 0
         not_found = []
+        errors = []
 
         for order_id in order_ids:
             try:
@@ -670,12 +674,20 @@ class DeleteOrderAPIView(APIView):
                 
                 # Delete the order itself
                 order.delete()
-                deleted_count += 1
+                
+                # Verify deletion
+                if Orders.objects.filter(order_id=order_id).exists():
+                    errors.append(f"Order {order_id} still exists after deletion")
+                else:
+                    deleted_count += 1
+                    
             except Orders.DoesNotExist:
                 not_found.append(order_id)
                 continue
             except Exception as e:
-                return Response({'error': f'Error deleting order {order_id}: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                errors.append(f"Error deleting order {order_id}: {str(e)}")
+                logger.error(f"Error deleting order {order_id}: {e}", exc_info=True)
+                continue
 
         response_data = {
             'success': True,
@@ -683,6 +695,10 @@ class DeleteOrderAPIView(APIView):
             'deleted': deleted_count,
             'not_found': not_found
         }
+        
+        if errors:
+            response_data['errors'] = errors
+            response_data['message'] += f'. {len(errors)} error(s) occurred.'
         
         return Response(response_data, status=status.HTTP_200_OK)
 
@@ -703,7 +719,18 @@ class EditOrderAPIView(APIView):
             order.user_name = data.get("user_name", order.user_name)
             incoming_status = data.get("status")
             if incoming_status is not None:
-                order.status = incoming_status
+                # Validate status against model choices (case-insensitive)
+                # Model has: pending, processing, shipped, completed, cancelled
+                status_lower = str(incoming_status).lower()
+                valid_statuses = ["pending", "processing", "shipped", "completed", "cancelled"]
+                
+                if status_lower in valid_statuses:
+                    order.status = status_lower
+                else:
+                    return Response(
+                        {"error": f"Invalid status '{incoming_status}'. Valid statuses are: pending, processing, shipped, completed, cancelled"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
             if data.get("total_price") is not None:
                 order.total_price = Decimal(str(data["total_price"]))
             order.notes = data.get("notes", order.notes)

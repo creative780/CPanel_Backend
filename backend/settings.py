@@ -201,7 +201,8 @@ CORS_ALLOW_METHODS = [
 FRONTEND_HEADER_NAME = os.getenv("FRONTEND_HEADER_NAME", "x-frontend-key").lower()
 CORS_ALLOW_HEADERS = list(default_headers) + [
     FRONTEND_HEADER_NAME,  # e.g., "x-frontend-key"
-    "x-device-uuid",       # normalized to lowercase
+    "x-device-uuid",
+    "x-csrftoken",
 ]
 
 # Cache preflight responses for 1 hour
@@ -225,6 +226,12 @@ USE_X_FORWARDED_HOST = env_bool("USE_X_FORWARDED_HOST", True)
 
 SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", not DEBUG)
 CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", not DEBUG)
+# CSRF cookie settings for local development (different ports)
+# Note: For cross-origin (different ports), SameSite=Lax allows cookies for top-level navigations
+# but not for fetch requests. We use X-CSRFToken header + cookie double-submit pattern.
+CSRF_COOKIE_SAMESITE = "Lax"  # Allows cookies for same-site requests
+CSRF_COOKIE_HTTPONLY = False  # Must be False to allow reading for X-CSRFToken header (double-submit pattern)
+CSRF_COOKIE_PATH = "/"  # Cookie available for all paths
 
 # ---------------------------
 # Custom User
@@ -274,6 +281,19 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv("DATA_UPLOAD_MAX_MEMORY_SIZE", str(1
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 DATA_API_BASE = os.getenv("DATA_API_BASE", "http://127.0.0.1:8000/api")
 BOT_DEFAULT_LANG = os.getenv("BOT_DEFAULT_LANG", "en")
+
+# ---------------------------
+# Email Configuration (SMTP)
+# ---------------------------
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = env_bool('EMAIL_USE_TLS', True)
+EMAIL_USE_SSL = env_bool('EMAIL_USE_SSL', False)
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'maffanilahi@gmail.com')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'iwxmahwpkqzvdizl')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+SERVER_EMAIL = DEFAULT_FROM_EMAIL  # For error reporting
 
 # ---------------------------
 # Production toggles (optional)

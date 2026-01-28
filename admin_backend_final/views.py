@@ -4,6 +4,7 @@ import json
 import logging
 import re
 import traceback
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +13,8 @@ from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.text import slugify
 from django.db import IntegrityError, transaction
+from django.db.models import Sum, Count, Q
+from datetime import timedelta
 
 # Django REST Framework
 from rest_framework import status
@@ -599,6 +602,65 @@ def update_notification_status(request):
 
 @api_view(['POST'])
 @permission_classes([FrontendOnlyPermission])
+def create_low_stock_notification(request):
+    """
+    Create a low-stock notification for a product.
+    Deduplicates by checking for existing unread low_stock notification for the same product.
+    
+    Expected payload:
+    {
+        "product_id": "...",
+        "product_name": "...",
+        "quantity": 3
+    }
+    """
+    import uuid
+    
+    product_id = request.data.get("product_id")
+    product_name = request.data.get("product_name", "Unknown Product")
+    quantity = request.data.get("quantity", 0)
+    
+    if not product_id:
+        return Response({"error": "product_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Dedupe: Check for existing unread low_stock notification for this product
+    existing = Notification.objects.filter(
+        type="low_stock",
+        source_id=str(product_id),
+        status="unread"
+    ).first()
+    
+    if existing:
+        return Response({
+            "message": "Low stock notification already exists for this product",
+            "notification_id": existing.notification_id,
+            "already_exists": True
+        }, status=status.HTTP_200_OK)
+    
+    # Create new notification
+    notification_id = str(uuid.uuid4())
+    message = f'Product "{product_name}" (ID: {product_id}) is low on stock ({quantity} left)'
+    
+    Notification.objects.create(
+        notification_id=notification_id,
+        type="low_stock",
+        title="Low Stock Alert",
+        message=message,
+        recipient_id="superadmin",
+        recipient_type="admin",
+        source_table="Product",
+        source_id=str(product_id),
+        status="unread",
+    )
+    
+    return Response({
+        "message": "Low stock notification created",
+        "notification_id": notification_id,
+        "already_exists": False
+    }, status=status.HTTP_201_CREATED)
+
+@api_view(['POST'])
+@permission_classes([FrontendOnlyPermission])
 @parser_classes([MultiPartParser, FormParser, JSONParser])
 def update_image(request, image_id):
     from PIL import Image as PILImage
@@ -667,4 +729,197 @@ def update_image(request, image_id):
             'error': 'Database error while updating image',
             'detail': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class DashboardStatisticsAPIView(APIView):
+    permission_classes = [FrontendOnlyPermission]
+
+    def get(self, request):
+        try:
+            now = timezone.now()
+            thirty_days_ago = now - timedelta(days=30)
+            sixty_days_ago = now - timedelta(days=60)
+            
+            # Total Revenue: Sum of all completed orders
+            total_revenue_result = Orders.objects.filter(status='completed').aggregate(
+                total=Sum('total_price')
+            )
+            total_revenue = float(total_revenue_result['total'] or 0)
+            
+            # Revenue for last 30 days
+            revenue_last_30 = Orders.objects.filter(
+                order_date__gte=thirty_days_ago,
+                status='completed'
+            ).aggregate(
+                total=Sum('total_price')
+            )['total'] or 0
+            
+            # Revenue for previous 30 days (30-60 days ago)
+            revenue_prev_30 = Orders.objects.filter(
+                order_date__gte=sixty_days_ago,
+                order_date__lt=thirty_days_ago,
+                status='completed'
+            ).aggregate(
+                total=Sum('total_price')
+            )['total'] or 0
+            
+            # Calculate revenue change percentage
+            if revenue_prev_30 > 0:
+                revenue_change_pct = ((float(revenue_last_30) - float(revenue_prev_30)) / float(revenue_prev_30)) * 100
+                revenue_change = f"{'+' if revenue_change_pct >= 0 else ''}{revenue_change_pct:.1f}%"
+            else:
+                revenue_change = "+0%" if revenue_last_30 > 0 else "0%"
+            
+            # New Users: Count of users created in last 30 days
+            new_users = User.objects.filter(created_at__gte=thirty_days_ago).count()
+            
+            # New users in previous 30 days
+            new_users_prev_30 = User.objects.filter(
+                created_at__gte=sixty_days_ago,
+                created_at__lt=thirty_days_ago
+            ).count()
+            
+            # Calculate users change percentage
+            if new_users_prev_30 > 0:
+                users_change_pct = ((new_users - new_users_prev_30) / new_users_prev_30) * 100
+                users_change = f"{'+' if users_change_pct >= 0 else ''}{users_change_pct:.1f}%"
+            else:
+                users_change = "+0%" if new_users > 0 else "0%"
+            
+            # Active Users: Distinct users who have placed orders
+            active_users = Orders.objects.values('user_name').distinct().count()
+            
+            # Active users in last 30 days
+            active_users_last_30 = Orders.objects.filter(
+                order_date__gte=thirty_days_ago
+            ).values('user_name').distinct().count()
+            
+            # Active users in previous 30 days
+            active_users_prev_30 = Orders.objects.filter(
+                order_date__gte=sixty_days_ago,
+                order_date__lt=thirty_days_ago
+            ).values('user_name').distinct().count()
+            
+            # Calculate active users change percentage
+            if active_users_prev_30 > 0:
+                active_users_change_pct = ((active_users_last_30 - active_users_prev_30) / active_users_prev_30) * 100
+                active_users_change = f"{'+' if active_users_change_pct >= 0 else ''}{active_users_change_pct:.1f}%"
+            else:
+                active_users_change = "+0%" if active_users_last_30 > 0 else "0%"
+            
+            # Growth Rate: Overall growth rate (using revenue as primary metric)
+            if revenue_prev_30 > 0:
+                growth_rate = ((float(revenue_last_30) - float(revenue_prev_30)) / float(revenue_prev_30)) * 100
+            elif revenue_last_30 > 0:
+                # If there's revenue now but none before, show 100% growth (new revenue)
+                growth_rate = 100.0
+            else:
+                # No revenue in either period
+                growth_rate = 0.0
+            
+            # Time Series Data: Last 30 days of revenue and user activity (including today)
+            time_series_labels = []
+            time_series_revenue = []
+            time_series_users = []
+            
+            # Loop from 29 days ago to today (inclusive) = 30 days total
+            for i in range(29, -1, -1):
+                day_start = now - timedelta(days=i)
+                day_end = day_start + timedelta(days=1)
+                
+                day_revenue = Orders.objects.filter(
+                    order_date__gte=day_start,
+                    order_date__lt=day_end,
+                    status='completed'
+                ).aggregate(
+                    total=Sum('total_price')
+                )['total'] or 0
+                
+                day_users = Orders.objects.filter(
+                    order_date__gte=day_start,
+                    order_date__lt=day_end
+                ).values('user_name').distinct().count()
+                
+                time_series_labels.append(day_start.strftime('%Y-%m-%d'))
+                time_series_revenue.append(float(day_revenue))
+                time_series_users.append(day_users)
+            
+            # Order Status Distribution
+            # Normalize statuses to handle case variations
+            status_counts_raw = Orders.objects.values('status').annotate(count=Count('order_id'))
+
+            # Status normalization map - keep all statuses separate
+            status_normalize_map = {
+                'pending': 'Pending',
+                'processing': 'Processing',
+                'shipped': 'Shipped',
+                'completed': 'Completed',
+                'cancelled': 'Cancelled'
+            }
+
+            # All expected statuses (must be included even if count is 0)
+            all_statuses = ['Pending', 'Processing', 'Shipped', 'Completed', 'Cancelled']
+
+            # Aggregate counts by normalized status
+            normalized_counts = defaultdict(int)
+            for item in status_counts_raw:
+                status_lower = str(item['status']).lower().strip()
+                # Map to normalized status, fallback to capitalize if not in map
+                normalized_status = status_normalize_map.get(status_lower, status_lower.capitalize())
+                normalized_counts[normalized_status] += item['count']
+
+            # Convert to list format - ensure all statuses are included
+            order_status_distribution = [
+                {
+                    'status': status,
+                    'count': normalized_counts.get(status, 0)
+                }
+                for status in all_statuses
+            ]
+
+            # Sort by predefined order (maintain consistent ordering)
+            order_status_distribution.sort(key=lambda x: all_statuses.index(x['status']))
+            
+            # Top Destination Countries/Cities: Aggregate from OrderDelivery
+            city_counts = OrderDelivery.objects.values('city').annotate(
+                order_count=Count('order_id')
+            ).order_by('-order_count')[:10]
+            
+            total_orders_with_delivery = OrderDelivery.objects.count()
+            top_countries = []
+            if total_orders_with_delivery > 0:
+                for city_data in city_counts:
+                    percentage = (city_data['order_count'] / total_orders_with_delivery) * 100
+                    top_countries.append({
+                        'country': city_data['city'] or 'Unknown',
+                        'percentage': round(percentage, 1)
+                    })
+            
+            # If no delivery data, return empty list
+            if not top_countries:
+                top_countries = []
+            
+            return Response({
+                'total_revenue': round(total_revenue, 2),
+                'new_users': new_users,
+                'active_users': active_users,
+                'growth_rate': round(growth_rate, 1),
+                'revenue_change': revenue_change,
+                'users_change': users_change,
+                'active_users_change': active_users_change,
+                'time_series': {
+                    'labels': time_series_labels,
+                    'revenue': time_series_revenue,
+                    'users': time_series_users
+                },
+                'order_status_distribution': order_status_distribution,
+                'top_countries': top_countries
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.exception(f"Failed to fetch dashboard statistics: {e}")
+            return Response({
+                'error': 'Failed to fetch dashboard statistics',
+                'detail': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

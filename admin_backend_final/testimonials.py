@@ -76,8 +76,9 @@ def _serialize_testimonial(t: Testimonial, request=None):
     """
     avatar = ""
     try:
-        if t.image and getattr(t.image, "image_file", None):
-            avatar = t.image.image_file.url or ""
+        if t.image:
+            # Use Image.url property which includes cache-busting parameter
+            avatar = t.image.url or ""
     except Exception:
         avatar = ""
 

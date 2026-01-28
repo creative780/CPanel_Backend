@@ -1,11 +1,14 @@
 # Standard Library
 import json
 import traceback
+import logging
 
 
 # Django
 from django.utils import timezone
 from django.db import transaction
+
+logger = logging.getLogger(__name__)
 
 # Django REST Framework
 from rest_framework import status
@@ -20,6 +23,7 @@ from .permissions import FrontendOnlyPermission
 class SaveCategoryAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
+    @transaction.atomic
     def post(self, request):
         # Keep existing behavior: support both JSON and multipart
         if request.content_type and 'application/json' in request.content_type:
@@ -81,6 +85,35 @@ class SaveCategoryAPIView(APIView):
             if img:
                 CategoryImage.objects.create(category=category, image=img)
 
+        # -------- Subcategory mappings --------
+        # Handle both FormData (has getlist) and JSON (dict)
+        if hasattr(data, 'getlist'):
+            incoming_subcategory_ids = data.getlist('subcategory_ids')
+        else:
+            # JSON format - could be a list or single value
+            sub_ids_raw = data.get('subcategory_ids', [])
+            if isinstance(sub_ids_raw, list):
+                incoming_subcategory_ids = sub_ids_raw
+            elif sub_ids_raw:
+                incoming_subcategory_ids = [sub_ids_raw]
+            else:
+                incoming_subcategory_ids = []
+        
+        if incoming_subcategory_ids:
+            new_sub_ids = set([str(sid).strip() for sid in incoming_subcategory_ids if sid and str(sid).strip()])
+            
+            if new_sub_ids:
+                subcategories_qs = SubCategory.objects.filter(subcategory_id__in=new_sub_ids)
+                if subcategories_qs.count() != len(new_sub_ids):
+                    return Response({'error': 'One or more subcategory IDs not found'}, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Create mappings for new category
+                subs_to_add = {s.subcategory_id: s for s in subcategories_qs if s.subcategory_id in new_sub_ids}
+                CategorySubCategoryMap.objects.bulk_create([
+                    CategorySubCategoryMap(category=category, subcategory=subs_to_add[sid])
+                    for sid in new_sub_ids
+                ])
+
         return Response({
             'success': True,
             'category_id': category_id,
@@ -93,7 +126,11 @@ class ShowCategoryAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def get(self, request):
-        categories = Category.objects.all().order_by('order')
+        status_filter = request.query_params.get('status', 'visible')  # Default to visible
+        if status_filter == 'all':
+            categories = Category.objects.all().order_by('order')
+        else:
+            categories = Category.objects.filter(status=status_filter).order_by('order')
         result = []
 
         for cat in categories:
@@ -101,6 +138,7 @@ class ShowCategoryAPIView(APIView):
             subcat_maps = CategorySubCategoryMap.objects.filter(category=cat).select_related('subcategory')
             subcats = [m.subcategory for m in subcat_maps]
             subcat_names = [s.name for s in subcats]
+            subcat_ids = [s.subcategory_id for s in subcats]
 
             # Product count across those subcategories
             product_count = ProductSubCategoryMap.objects.filter(subcategory__in=subcats).count()
@@ -118,6 +156,7 @@ class ShowCategoryAPIView(APIView):
                 "imageAlt": alt_text,
                 "subcategories": {
                     "names": subcat_names or None,
+                    "ids": subcat_ids or None,
                     "count": len(subcat_names) or 0
                 },
                 "products": product_count or 0,
@@ -154,6 +193,36 @@ class EditCategoryAPIView(APIView):
 
         category.updated_at = timezone.now()
         category.save(update_fields=['name','caption','description','updated_at'])
+
+        # -------- Subcategory mappings --------
+        incoming_subcategory_ids = data.getlist('subcategory_ids')
+        if incoming_subcategory_ids:
+            new_sub_ids = set([sid.strip() for sid in incoming_subcategory_ids if sid and sid.strip()])
+            
+            if new_sub_ids:
+                subcategories_qs = SubCategory.objects.filter(subcategory_id__in=new_sub_ids)
+                if subcategories_qs.count() != len(new_sub_ids):
+                    return Response({'error': 'One or more subcategory IDs not found'}, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Reconcile mappings
+                existing_maps = CategorySubCategoryMap.objects.filter(category=category)
+                existing_ids = set(existing_maps.values_list('subcategory__subcategory_id', flat=True))
+                
+                to_add = new_sub_ids - existing_ids
+                to_remove = existing_ids - new_sub_ids
+                
+                if to_remove:
+                    CategorySubCategoryMap.objects.filter(
+                        category=category,
+                        subcategory__subcategory_id__in=to_remove
+                    ).delete()
+                
+                if to_add:
+                    subs_to_add = {s.subcategory_id: s for s in subcategories_qs if s.subcategory_id in to_add}
+                    CategorySubCategoryMap.objects.bulk_create([
+                        CategorySubCategoryMap(category=category, subcategory=subs_to_add[sid])
+                        for sid in to_add
+                    ])
 
         # -------- Image handling --------
         alt_text = (
@@ -203,6 +272,7 @@ class EditCategoryAPIView(APIView):
 class DeleteCategoryAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
+    @transaction.atomic
     def post(self, request):
         try:
             data = json.loads(request.body)
@@ -213,6 +283,10 @@ class DeleteCategoryAPIView(APIView):
 
         if not category_ids:
             return Response({'error': 'No category IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        deleted_count = 0
+        not_found = []
+        errors = []
 
         for category_id in category_ids:
             try:
@@ -225,6 +299,7 @@ class DeleteCategoryAPIView(APIView):
                         'message': 'Deleting this category will delete its subcategories and related products. Continue?'
                     }, status=status.HTTP_200_OK)
 
+                # Delete related mappings and subcategories
                 for mapping in related_mappings:
                     subcat = mapping.subcategory
                     other_links = CategorySubCategoryMap.objects.filter(subcategory=subcat).exclude(category=category)
@@ -232,11 +307,35 @@ class DeleteCategoryAPIView(APIView):
                         subcat.delete()
                     mapping.delete()
 
+                # Delete the category
                 category.delete()
+                
+                # Verify deletion
+                if Category.objects.filter(category_id=category_id).exists():
+                    errors.append(f"Category {category_id} still exists after deletion")
+                else:
+                    deleted_count += 1
+                    
             except Category.DoesNotExist:
+                not_found.append(category_id)
+                continue
+            except Exception as e:
+                errors.append(f"Error deleting category {category_id}: {str(e)}")
+                logger.error(f"Error deleting category {category_id}: {e}", exc_info=True)
                 continue
 
-        return Response({'success': True, 'message': 'Selected categories deleted'}, status=status.HTTP_200_OK)
+        response_data = {
+            'success': True,
+            'message': f'Deleted {deleted_count} category/categories',
+            'deleted': deleted_count,
+            'not_found': not_found
+        }
+        
+        if errors:
+            response_data['errors'] = errors
+            response_data['message'] += f'. {len(errors)} error(s) occurred.'
+        
+        return Response(response_data, status=status.HTTP_200_OK)
 
 
 class UpdateCategoryOrderAPIView(APIView):
@@ -330,7 +429,11 @@ class ShowSubCategoryAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
     def get(self, request):
-        subcategories = SubCategory.objects.all().order_by("order")
+        status_filter = request.query_params.get('status', 'visible')  # Default to visible
+        if status_filter == 'all':
+            subcategories = SubCategory.objects.all().order_by("order")
+        else:
+            subcategories = SubCategory.objects.filter(status=status_filter).order_by("order")
         result = []
         for sub in subcategories:
             maps = CategorySubCategoryMap.objects.filter(subcategory=sub).select_related('category')
@@ -472,6 +575,7 @@ class EditSubCategoryAPIView(APIView):
 class DeleteSubCategoryAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
+    @transaction.atomic
     def post(self, request):
         try:
             data = json.loads(request.body)
@@ -483,49 +587,78 @@ class DeleteSubCategoryAPIView(APIView):
         if not subcategory_ids:
             return Response({'error': 'No subcategory IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
 
+        deleted_count = 0
+        not_found = []
+        errors = []
+
         try:
             for sub_id in set(subcategory_ids):  # de-duplicate IDs
-                print(f"Processing subcategory_id: {sub_id}")
-
                 try:
                     subcat = SubCategory.objects.get(subcategory_id=sub_id)
                 except SubCategory.DoesNotExist:
-                    print(f"Subcategory {sub_id} not found.")
+                    not_found.append(sub_id)
                     continue
 
-                related_products = ProductSubCategoryMap.objects.filter(subcategory=subcat)
-
-                if not confirm and related_products.exists():
-                    return Response({
-                        'confirm': True,
-                        'message': f'Deleting subcategory "{sub_id}" will delete all its related products. Continue?'
-                    }, status=status.HTTP_200_OK)
-
-                for mapping in related_products:
-                    try:
-                        other_links = ProductSubCategoryMap.objects.filter(product=mapping.product).exclude(subcategory=subcat)
-                        if not other_links.exists():
-                            mapping.product.delete()
-                        mapping.delete()
-                    except Exception as e:
-                        print(f"Error while deleting mapping or product: {e}")
-
-                # Delete image relationships
                 try:
-                    SubCategoryImage.objects.filter(subcategory=subcat).delete()
+                    related_products = ProductSubCategoryMap.objects.filter(subcategory=subcat)
+
+                    if not confirm and related_products.exists():
+                        return Response({
+                            'confirm': True,
+                            'message': f'Deleting subcategory "{sub_id}" will delete all its related products. Continue?'
+                        }, status=status.HTTP_200_OK)
+
+                    # Delete related products and mappings
+                    for mapping in related_products:
+                        try:
+                            other_links = ProductSubCategoryMap.objects.filter(product=mapping.product).exclude(subcategory=subcat)
+                            if not other_links.exists():
+                                mapping.product.delete()
+                            mapping.delete()
+                        except Exception as e:
+                            errors.append(f"Error deleting product mapping for subcategory {sub_id}: {str(e)}")
+                            logger.error(f"Error deleting product mapping for subcategory {sub_id}: {e}", exc_info=True)
+
+                    # Delete image relationships
+                    try:
+                        SubCategoryImage.objects.filter(subcategory=subcat).delete()
+                    except Exception as e:
+                        errors.append(f"Error deleting SubCategoryImage for {sub_id}: {str(e)}")
+                        logger.error(f"Error deleting SubCategoryImage for {sub_id}: {e}", exc_info=True)
+
+                    # Remove category-subcategory mapping
+                    CategorySubCategoryMap.objects.filter(subcategory=subcat).delete()
+
+                    # Finally, delete subcategory
+                    subcat.delete()
+                    
+                    # Verify deletion
+                    if SubCategory.objects.filter(subcategory_id=sub_id).exists():
+                        errors.append(f"Subcategory {sub_id} still exists after deletion")
+                    else:
+                        deleted_count += 1
+                        
                 except Exception as e:
-                    print(f"Error deleting SubCategoryImage for {sub_id}: {e}")
+                    errors.append(f"Error deleting subcategory {sub_id}: {str(e)}")
+                    logger.error(f"Error deleting subcategory {sub_id}: {e}", exc_info=True)
+                    continue
 
-                # Remove category-subcategory mapping
-                CategorySubCategoryMap.objects.filter(subcategory=subcat).delete()
-
-                # Finally, delete subcategory
-                subcat.delete()
-
-            return Response({'success': True, 'message': 'Selected subcategories deleted successfully'}, status=status.HTTP_200_OK)
+            response_data = {
+                'success': True,
+                'message': f'Deleted {deleted_count} subcategory/subcategories',
+                'deleted': deleted_count,
+                'not_found': not_found
+            }
+            
+            if errors:
+                response_data['errors'] = errors
+                response_data['message'] += f'. {len(errors)} error(s) occurred.'
+            
+            return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
             traceback.print_exc()
+            logger.error(f"Unexpected error in DeleteSubCategoryAPIView: {e}", exc_info=True)
             return Response({'error': f'Unexpected error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

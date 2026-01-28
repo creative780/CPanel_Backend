@@ -3,7 +3,10 @@
 
 import json
 import uuid
+import logging
 from typing import List, Tuple
+
+logger = logging.getLogger(__name__)
 
 from django.db import transaction, connection
 from django.db.models import Q
@@ -14,8 +17,9 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from typing import Optional
-from .models import AttributeSubCategory  # <- model added earlier
+from .models import AttributeSubCategory, Attribute, Image, Product  # <- model added earlier
 from .permissions import FrontendOnlyPermission
+from .utilities import save_image
 
 
 # ------------------------------
@@ -327,6 +331,60 @@ class EditSubcatAttributesAPIView(APIView):
         obj.updated_at = timezone.now()
         obj.save()
 
+        # Sync product Attribute images when AttributeSubCategory is edited
+        # Find all product attributes with matching name
+        product_attrs = Attribute.objects.filter(
+            name=obj.name,
+            parent__isnull=True  # Only parent attributes
+        ).select_related('product').prefetch_related('options')
+
+        # Create a mapping of option label to updated image info from AttributeSubCategory.values
+        value_map = {}
+        for val in obj.values:
+            if isinstance(val, dict):
+                option_name = val.get('name') or val.get('label', '')
+                if option_name:
+                    value_map[option_name] = {
+                        'image_id': val.get('image_id'),
+                        'image_url': val.get('image_url'),
+                    }
+
+        # Update product attribute options
+        for parent_attr in product_attrs:
+            for option in parent_attr.options.all():
+                option_label = option.label
+                if option_label in value_map:
+                    val_data = value_map[option_label]
+                    new_image = None
+                    
+                    # Try to get image by image_id first
+                    if val_data.get('image_id'):
+                        new_image = Image.objects.filter(image_id=val_data['image_id']).first()
+                    
+                    # If no image_id or not found, try to save from image_url
+                    if not new_image and val_data.get('image_url'):
+                        try:
+                            saved = save_image(
+                                val_data['image_url'],
+                                alt_text=f"{obj.name} - {option_label}",
+                                tags="attribute,option",
+                                linked_table="product_attribute",
+                                linked_page="product-detail",
+                                linked_id=parent_attr.attr_id,
+                            )
+                            if hasattr(saved, "pk"):
+                                new_image = saved
+                            elif isinstance(saved, dict) and saved.get("image_id"):
+                                new_image = Image.objects.filter(image_id=saved["image_id"]).first()
+                        except Exception:
+                            # Skip if image save fails
+                            pass
+                    
+                    # Update option image if we have a new one
+                    if new_image and option.image != new_image:
+                        option.image = new_image
+                        option.save(update_fields=['image'])
+
         return Response(_serialize_attribute(obj), status=status.HTTP_200_OK)
 
 class DeleteSubcatAttributesAPIView(APIView):
@@ -343,5 +401,41 @@ class DeleteSubcatAttributesAPIView(APIView):
           return Response({"error": "No IDs provided"}, status=status.HTTP_400_BAD_REQUEST)
 
       ids = [str(x).strip() for x in ids if str(x).strip()]
-      deleted, _ = AttributeSubCategory.objects.filter(attribute_id__in=ids).delete()
-      return Response({"success": True, "deleted": deleted}, status=status.HTTP_200_OK)
+      
+      try:
+          # Get the attribute names before deleting, so we can find and delete product-specific attributes
+          attributes_to_delete = AttributeSubCategory.objects.filter(attribute_id__in=ids)
+          attribute_names = list(attributes_to_delete.values_list('name', flat=True))
+          
+          # Delete from AttributeSubCategory
+          deleted_subcat, _ = AttributeSubCategory.objects.filter(attribute_id__in=ids).delete()
+          
+          # Verify deletion
+          remaining = AttributeSubCategory.objects.filter(attribute_id__in=ids).count()
+          if remaining > 0:
+              return Response({
+                  "error": f"Failed to delete all attributes. {remaining} still exist.",
+                  "deleted": deleted_subcat
+              }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+          
+          # Also delete product-specific Attribute records that match these attribute names
+          # This will cascade delete their options (due to CASCADE on_delete)
+          deleted_product_attrs = 0
+          if attribute_names:
+              # Find all product attributes (parent attributes only, not options) with matching names
+              product_attributes = Attribute.objects.filter(
+                  name__in=attribute_names,
+                  parent__isnull=True  # Only parent attributes, not options
+              )
+              deleted_product_attrs, _ = product_attributes.delete()
+          
+          return Response({
+              "success": True, 
+              "deleted": deleted_subcat,
+              "deleted_product_attributes": deleted_product_attrs
+          }, status=status.HTTP_200_OK)
+      except Exception as e:
+          logger.error(f"Error deleting attributes: {e}", exc_info=True)
+          return Response({
+              "error": f"Error deleting attributes: {str(e)}"
+          }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

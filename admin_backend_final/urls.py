@@ -62,6 +62,7 @@ urlpatterns = [
     path('hero-banner/', home_page.HeroBannerAPIView.as_view(), name='hero_banner'),
     path('notifications/', views.get_notifications, name='get_notifications'),
     path('notification-update', views.update_notification_status, name='update_notifications'),
+    path('low-stock-notification/', views.create_low_stock_notification, name='create_low_stock_notification'),
     path('update-image/<str:image_id>/', views.update_image, name='update_image'),
     path("user-response/", chat.UserResponseAPIView.as_view(), name="user_response"),
     path("bot-response/", chat.BotResponseAPIView.as_view(), name="bot_response"),
@@ -98,4 +99,5 @@ urlpatterns = [
     path("recover-item/", deleted.recover_item, name="recover_item"),
     path("restore-item/", deleted.RestoreItemsAPIView.as_view(), name="restore_item"),
     path("permanently-item/", deleted.permanently_delete_item, name="permanently_item"),
+    path("dashboard-statistics/", views.DashboardStatisticsAPIView.as_view(), name="dashboard_statistics"),
 ]

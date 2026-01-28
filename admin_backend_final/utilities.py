@@ -28,6 +28,38 @@ from .models import *  # Consider specifying models instead of wildcard import
 from .permissions import FrontendOnlyPermission
 from django.core.files.base import ContentFile
 from django.db import DatabaseError, IntegrityError
+from django.core.mail import send_mail
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+def send_verification_email(user_email: str, code: str) -> bool:
+    """
+    Send verification email using Django's email backend (configured via env vars).
+    Returns True if successful, False otherwise.
+    """
+    try:
+        subject = "Email Verification Code"
+        message = f"""Your email verification code is: {code}
+
+This code will expire in 10 minutes.
+
+If you did not request this code, please ignore this email."""
+        
+        from_email = settings.DEFAULT_FROM_EMAIL
+        recipient_list = [user_email]
+        
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=from_email,
+            recipient_list=recipient_list,
+            fail_silently=False,
+        )
+        return True
+    except Exception as e:
+        logger.exception(f"Failed to send verification email: {e}")
+        return False
 
 def format_datetime(dt):
     return dt.strftime('%d-%B-%Y-%I:%M%p')
@@ -385,16 +417,17 @@ def format_image_object(image_obj, request=None):
     if not img:
         return None
 
-    url = getattr(img, "url", None)  # your Image.url property returns "/media/.."
+    url = getattr(img, "url", None)  # your Image.url property returns "/media/..?v=timestamp" (with cache-busting)
     if not url:
         return None
 
     # build absolute URL when request is available (prod-safe; works in dev too)
+    # build_absolute_uri preserves query parameters (including cache-busting ?v=timestamp)
     if request:
         try:
             url = request.build_absolute_uri(url)
         except Exception:
-            # fallback to relative on any edge error
+            # fallback to relative on any edge error (cache-busting parameter is preserved)
             pass
 
     return {
