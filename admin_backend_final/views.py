@@ -14,6 +14,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.utils.text import slugify
 from django.db import IntegrityError, transaction
 from django.db.models import Sum, Count, Q
+from django.db.models.functions import TruncDay
 from datetime import timedelta
 
 # Django REST Framework
@@ -98,7 +99,8 @@ class ShowNavItemsAPIView(APIView):
                 "subcategories": subcategories,
             })
 
-        return Response(data, status=status.HTTP_200_OK)
+        response = Response(data, status=status.HTTP_200_OK)
+        return response
 
 EMIRATES_ID_RE = re.compile(r"^784-\d{4}-\d{7}-\d$")
 
@@ -818,31 +820,34 @@ class DashboardStatisticsAPIView(APIView):
                 growth_rate = 0.0
             
             # Time Series Data: Last 30 days of revenue and user activity (including today)
+            # Use aggregation with TruncDay to get all data in ONE query instead of 30 separate loops
+            daily_stats = Orders.objects.filter(
+                order_date__gte=thirty_days_ago
+            ).annotate(
+                day=TruncDay('order_date')
+            ).values('day').annotate(
+                revenue=Sum('total_price', filter=Q(status__iexact='completed')),
+                users=Count('user_name', distinct=True)
+            ).order_by('day')
+
+            # Create a lookup map for the aggregated data
+            stats_map = {
+                stat['day'].strftime('%Y-%m-%d'): stat 
+                for stat in daily_stats
+            }
+
             time_series_labels = []
             time_series_revenue = []
             time_series_users = []
             
-            # Loop from 29 days ago to today (inclusive) = 30 days total
+            # Reconstruct the full 30-day series (ensuring days with zero data are included)
             for i in range(29, -1, -1):
-                day_start = now - timedelta(days=i)
-                day_end = day_start + timedelta(days=1)
+                day_str = (now - timedelta(days=i)).strftime('%Y-%m-%d')
+                stat = stats_map.get(day_str, {})
                 
-                day_revenue = Orders.objects.filter(
-                    order_date__gte=day_start,
-                    order_date__lt=day_end,
-                    status='completed'
-                ).aggregate(
-                    total=Sum('total_price')
-                )['total'] or 0
-                
-                day_users = Orders.objects.filter(
-                    order_date__gte=day_start,
-                    order_date__lt=day_end
-                ).values('user_name').distinct().count()
-                
-                time_series_labels.append(day_start.strftime('%Y-%m-%d'))
-                time_series_revenue.append(float(day_revenue))
-                time_series_users.append(day_users)
+                time_series_labels.append(day_str)
+                time_series_revenue.append(float(stat.get('revenue') or 0))
+                time_series_users.append(stat.get('users') or 0)
             
             # Order Status Distribution
             # Normalize statuses to handle case variations

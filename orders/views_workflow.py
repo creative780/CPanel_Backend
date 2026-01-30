@@ -114,8 +114,6 @@ class RequestDesignApprovalView(APIView):
             if not target_sales_person:
                 target_sales_person = serializer.validated_data['sales_person']
             
-            print(f'📋 Design approval for order {order.order_code} to sales person: {target_sales_person}')
-            
             # Create approval request - always send to the order's sales person
             approval = DesignApproval.objects.create(
                 order=order,
@@ -218,24 +216,9 @@ class ApproveDesignView(APIView):
         # Admin can always approve
         if request.user.has_role('admin'):
             can_approve = True
-            print(f'Admin {current_user} can approve approval {approval_id}')
         # Only the sales person who created/owns the order can approve
         elif 'sales' in user_roles and approval.order.assigned_sales_person == current_user:
             can_approve = True
-            print(f'Sales person {current_user} can approve (owns this order: {approval.order.order_code})')
-        # Temporary: Allow abdullah to approve any design (for debugging)
-        elif current_user == 'abdullah':
-            can_approve = True
-            print(f'TEMPORARY: abdullah can approve any design (debugging mode)')
-            print(f'   Order assigned to: {approval.order.assigned_sales_person}')
-            print(f'   Approval assigned to: {approval.sales_person}')
-            print(f'   abdullah has roles: {user_roles}')
-        else:
-            print(f'❌ User {current_user} cannot approve')
-            print(f'   Current user has sales role: {"sales" in user_roles}')
-            print(f'   Order assigned to: {approval.order.assigned_sales_person}')
-            print(f'   Approval assigned to: {approval.sales_person}')
-            print(f'   User roles: {user_roles}')
             
         if not can_approve:
             error_msg = f'User {current_user} cannot approve this order. '
@@ -415,12 +398,8 @@ class SendToProductionView(APIView):
                     file_obj.visible_to_roles = current_roles
                     file_obj.save(update_fields=['visible_to_roles'])
                     files_updated += 1
-                    print(f"✅ DEBUG: Updated file '{file_obj.file_name}' (ID: {file_obj.id}) to include 'production' role")
                 else:
                     files_already_visible += 1
-                    print(f"ℹ️ DEBUG: File '{file_obj.file_name}' (ID: {file_obj.id}) already visible to production")
-        
-        print(f"✅ DEBUG: SendToProduction complete - {files_updated} files updated, {files_already_visible} already visible")
         
         return Response({
             'ok': True,
@@ -525,19 +504,15 @@ class UploadOrderFileView(APIView):
             return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
         
         try:
-            print(f"🔵 DEBUG: Validating serializer with data: {dict(request.data)}")
             serializer = FileUploadSerializer(data=request.data)
             
             if not serializer.is_valid():
-                print(f"❌ DEBUG: Serializer validation failed: {serializer.errors}")
                 return Response(
                     {'error': 'Validation failed', 'details': serializer.errors},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            print(f"✅ DEBUG: Serializer is valid")
             uploaded_file = serializer.validated_data['file']
-            print(f"🔵 DEBUG: File received: {uploaded_file.name}, size: {uploaded_file.size}, type: {uploaded_file.content_type}")
             
             # Safely encode the filename to handle non-ASCII characters
             safe_filename = uploaded_file.name.encode('ascii', 'ignore').decode('ascii')
@@ -562,15 +537,6 @@ class UploadOrderFileView(APIView):
             except Exception:
                 is_admin = False
             
-            # If admin uploaded the file, ensure it's visible to all roles
-            if is_admin:
-                # Ensure all relevant roles are included
-                all_roles = ['admin', 'sales', 'designer', 'production', 'delivery']
-                visible_roles = list(set(visible_roles + all_roles))  # Merge and deduplicate
-                print(f"🔵 DEBUG: Admin user detected - ensuring file is visible to all roles: {visible_roles}")
-            
-            print(f"🔵 DEBUG: Creating OrderFile with visible_to_roles: {visible_roles} (type: {type(visible_roles)})")
-            
             try:
                 order_file = OrderFile.objects.create(
                     order=order,
@@ -594,20 +560,8 @@ class UploadOrderFileView(APIView):
                 # Verify it was saved immediately
                 verify_file = OrderFile.objects.filter(id=order_file.id).first()
                 if not verify_file:
-                    print(f"❌ DEBUG: CRITICAL ERROR - File not found in database after creation!")
                     raise Exception(f"File {uploaded_file.name} was not saved to database")
-                
-                if verify_file.order_id != order_id:
-                    print(f"⚠️ DEBUG: WARNING - File order_id mismatch! Expected {order_id}, got {verify_file.order_id}")
-                
-                print(f"✅ DEBUG: Created OrderFile ID {order_file.id} for order {order_id}")
-                print(f"✅ DEBUG: File verified in database: ID {verify_file.id}, order_id: {verify_file.order_id}")
-                print(f"✅ DEBUG: File name: {order_file.file_name}, visible_to_roles: {order_file.visible_to_roles}")
             except Exception as create_error:
-                import traceback
-                error_trace = traceback.format_exc()
-                print(f"❌ DEBUG: CRITICAL ERROR creating OrderFile: {str(create_error)}")
-                print(f"❌ DEBUG: Traceback: {error_trace}")
                 raise
             
             return Response(
@@ -615,12 +569,8 @@ class UploadOrderFileView(APIView):
                 status=status.HTTP_201_CREATED
             )
         except Exception as e:
-            import traceback
-            error_details = traceback.format_exc()
-            print(f"❌ ERROR: Failed to upload file - {str(e)}")
-            print(f"❌ ERROR: Traceback: {error_details}")
             return Response(
-                {'error': f'Failed to upload file: {str(e)}', 'traceback': error_details},
+                {'error': f'Failed to upload file: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -726,18 +676,11 @@ class OrderFilesListView(APIView):
     def get(self, request, order_id):
         # Wrap everything in outer try-catch to prevent any 500 errors
         try:
-            print(f"🔍 DEBUG: Starting OrderFilesListView for order {order_id}")
-            print(f"🔍 DEBUG: Request method: {request.method}, User: {getattr(request.user, 'username', 'unknown')}")
-            
             order = Order.objects.get(id=order_id)
-            print(f"🔍 DEBUG: Order found: {order.order_code}")
         except Order.DoesNotExist:
             print(f"❌ DEBUG: Order {order_id} not found")
             return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            import traceback
-            print(f"❌ DEBUG: Error getting order: {str(e)}")
-            print(f"❌ DEBUG: Traceback: {traceback.format_exc()}")
             return Response({'error': f'Error getting order: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         # Get user roles
@@ -797,9 +740,6 @@ class OrderFilesListView(APIView):
                 return Response([], status=status.HTTP_200_OK)
                 
         except Exception as e:
-            import traceback
-            print(f"❌ DEBUG: Error getting files: {str(e)}")
-            print(f"❌ DEBUG: Traceback: {traceback.format_exc()}")
             # Return empty list instead of error to prevent frontend crash
             return Response([], status=status.HTTP_200_OK)
         
@@ -825,10 +765,7 @@ class OrderFilesListView(APIView):
                 # Method 3: Check is_superuser as fallback
                 if not is_admin:
                     is_admin = getattr(request.user, 'is_superuser', False)
-                
-                print(f"🔍 DEBUG: Admin check - has_role method: {hasattr(request.user, 'has_role')}, has_role('admin'): {hasattr(request.user, 'has_role') and request.user.has_role('admin')}, roles: {user_roles_list}, is_superuser: {getattr(request.user, 'is_superuser', False)}, final is_admin: {is_admin}")
             except Exception as admin_check_error:
-                print(f"⚠️ DEBUG: Error checking admin status: {str(admin_check_error)}")
                 # If we can't determine admin status, default to False (safer)
                 is_admin = False
             
@@ -840,17 +777,12 @@ class OrderFilesListView(APIView):
                 # Other roles see only files visible to them
                 # Use normalize_visible_to_roles for consistent comparison
                 normalized_user_roles = [str(r).lower().strip() for r in user_roles if r]
-                print(f"🔍 DEBUG: Non-admin user - checking {files_count_after_filter} files for role access")
-                print(f"🔍 DEBUG: User roles (normalized): {normalized_user_roles}")
-                
                 visible_files = []
                 for file_obj in all_files_list:
                     file_visible_roles = normalize_visible_to_roles(file_obj.visible_to_roles)
-                    print(f"🔍 DEBUG: File '{file_obj.file_name}' (ID: {file_obj.id}) normalized visible_to_roles: {file_visible_roles}")
                     
                     # If file has no visible_to_roles set, make it visible to all (backward compatibility)
                     if not file_visible_roles or len(file_visible_roles) == 0:
-                        print(f"✅ DEBUG: File '{file_obj.file_name}' has no role restrictions - visible to all")
                         visible_files.append(file_obj)
                         continue
                     
@@ -859,13 +791,9 @@ class OrderFilesListView(APIView):
                     
                     if has_access:
                         visible_files.append(file_obj)
-                        print(f"✅ DEBUG: File '{file_obj.file_name}' is visible to user")
-                    else:
-                        print(f"❌ DEBUG: File '{file_obj.file_name}' is NOT visible to user (user roles: {normalized_user_roles}, file roles: {file_visible_roles})")
                 
                 filtered_files = visible_files
                 files_count_after_filter = len(filtered_files)
-                print(f"✅ DEBUG: Filtered to {files_count_after_filter} visible files out of {len(all_files_list)} total")
             
             files = filtered_files
         except Exception as filter_error:
@@ -1088,9 +1016,8 @@ class OrderFileDownloadView(APIView):
                 else:
                     response['Content-Disposition'] = f'attachment; filename="{order_file.file_name}"'
                 
-                # Log download for audit
-                user_name = request.user.username if hasattr(request.user, 'username') else 'unknown'
-                print(f"AUDIT: Order file accessed: {order_file.file_name} from Order {order_file.order.order_code} by {user_name}")
+                # Log download for audit (optional: keep if needed for security, but user asked for cleanup)
+                # user_name = request.user.username if hasattr(request.user, 'username') else 'unknown'
                 
                 return response
             else:
@@ -1215,17 +1142,8 @@ class PendingApprovalsView(APIView):
         responses={200: DesignApprovalSerializer(many=True)}
     )
     def get(self, request):
-        current_user = request.user.username if hasattr(request.user, 'username') else 'unknown'
-        user_roles = request.user.roles if hasattr(request.user, 'roles') and request.user.roles else ['unknown']
-        
         # DEBUG: Show all pending approvals for testing
         approvals = DesignApproval.objects.filter(approval_status='pending').select_related('order')
-        
-        print(f"DEBUG: Current user: {current_user}, roles: {user_roles}")
-        print(f"DEBUG: Found {approvals.count()} pending approvals")
-        for approval in approvals:
-            # Correctly access order_code through the related Order object
-            print(f"  - Approval {approval.id}: {approval.order.order_code}, sales_person: {approval.sales_person}, status: {approval.approval_status}")
         
         return Response(
             DesignApprovalSerializer(approvals, many=True).data

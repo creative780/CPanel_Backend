@@ -20,6 +20,7 @@ from django.db.models import Q, Prefetch
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.pagination import PageNumberPagination
 
 from .utilities import generate_custom_order_id
 # Local Imports
@@ -555,92 +556,109 @@ class SaveOrderAPIView(APIView):
 
 class ShowOrderAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
+
     def get(self, request):
         try:
-            orders_data = []
             orders = Orders.objects.all().order_by('-created_at')
 
-            for order in orders:
-                order_items = (
-                    OrderItem.objects
-                    .filter(order=order)
-                    .select_related('product')
-                )
-
-                try:
-                    delivery = OrderDelivery.objects.get(order=order)
-                    address = {
-                        "street": delivery.street_address,
-                        "city": delivery.city,
-                        "zip": delivery.zip_code
-                    }
-                    email = delivery.email or ""
-                except OrderDelivery.DoesNotExist:
-                    address, email = {}, ""
-
-                items_detail = []
-                for it in order_items:
-                    human = it.selected_attributes_human or []  # already ordered
-                    tokens = []
-                    if it.selected_size:
-                        tokens.append(f"Size: {it.selected_size}")
-                    for d in human:
-                        tokens.append(f"{d.get('attribute_name','')}: {d.get('option_label','')}")
-                    selection_str = ", ".join([t for t in tokens if t])
-
-                    # math parts
-                    try:
-                        base = Decimal(it.price_breakdown.get("base_price", it.unit_price))
-                    except Exception:
-                        base = it.unit_price
-                    deltas = []
-                    for d in human:
-                        try:
-                            deltas.append(Decimal(d.get("price_delta", "0") or "0"))
-                        except Exception:
-                            deltas.append(Decimal("0"))
-
-                    items_detail.append({
-                        "product_id": it.product.product_id,
-                        "product_name": it.product.title,
-                        "quantity": it.quantity,
-                        "unit_price": str(it.unit_price),
-                        "total_price": str(it.total_price),
-
-                        # Expose cart-parity fields to FE:
-                        "selected_size": it.selected_size or "",
-                        "selected_attributes": it.selected_attributes or {},        # raw ids
-                        "selected_attributes_human": human,                         # ordered list
-                        "selection": selection_str,                                 # legacy compact line
-
-                        "math": {
-                            "base": str(base),
-                            "deltas": [str(x) for x in deltas],
-                        },
-                        "variant_signature": it.variant_signature or "",
-                    })
-
-                orders_data.append({
-                    "orderID": order.order_id,
-                    "Date": order.order_date.strftime('%Y-%m-%d %H:%M:%S'),
-                    "UserName": order.user_name,
-                    "item": {
-                        "count": len(items_detail),
-                        "names": [x["product_name"] for x in items_detail],
-                        "detail": items_detail,
-                    },
-                    "total": float(order.total_price),
-                    "status": order.status,
-                    "Address": address,
-                    "email": email,
-                    "order_placed_on": order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                    "notes": order.notes or "",
-                })
-
-            return Response({"orders": orders_data}, status=status.HTTP_200_OK)
+            # Check if pagination is requested
+            page = request.GET.get('page')
+            if page:
+                paginator = PageNumberPagination()
+                paginator.page_size = int(request.GET.get('page_size', 20))
+                orders_page = paginator.paginate_queryset(orders, request)
+                
+                # Process the page items
+                orders_data = []
+                for order in (orders_page or []):
+                    orders_data.append(self._serialize_order(order, request))
+                
+                return paginator.get_paginated_response(orders_data)
+            else:
+                orders_data = []
+                for order in orders:
+                    orders_data.append(self._serialize_order(order, request))
+                
+                return Response({"orders": orders_data}, status=status.HTTP_200_OK)
 
         except Exception as e:
+            logger.exception(f"Error in ShowOrderAPIView: {e}")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _serialize_order(self, order, request):
+        """Helper to serialize a single order with items and delivery"""
+        order_items = (
+            OrderItem.objects
+            .filter(order=order)
+            .select_related('product')
+        )
+
+        try:
+            delivery = OrderDelivery.objects.get(order=order)
+            address = {
+                "street": delivery.street_address,
+                "city": delivery.city,
+                "zip": delivery.zip_code
+            }
+            email = delivery.email or ""
+        except OrderDelivery.DoesNotExist:
+            address, email = {}, ""
+
+        items_detail = []
+        for it in order_items:
+            human = it.selected_attributes_human or [] 
+            tokens = []
+            if it.selected_size:
+                tokens.append(f"Size: {it.selected_size}")
+            for d in human:
+                tokens.append(f"{d.get('attribute_name','')}: {d.get('option_label','')}")
+            selection_str = ", ".join([t for t in tokens if t])
+
+            try:
+                base = Decimal(it.price_breakdown.get("base_price", it.unit_price))
+            except Exception:
+                base = it.unit_price
+                
+            deltas = []
+            for d in human:
+                try:
+                    deltas.append(Decimal(d.get("price_delta", "0") or "0"))
+                except Exception:
+                    deltas.append(Decimal("0"))
+
+            items_detail.append({
+                "product_id": it.product.product_id,
+                "product_name": it.product.title,
+                "quantity": it.quantity,
+                "unit_price": str(it.unit_price),
+                "total_price": str(it.total_price),
+                "selected_size": it.selected_size or "",
+                "selected_attributes": it.selected_attributes or {},
+                "selected_attributes_human": human,
+                "selection": selection_str,
+                "math": {
+                    "base": str(base),
+                    "deltas": [str(x) for x in deltas],
+                },
+                "variant_signature": it.variant_signature or "",
+            })
+
+        return {
+            "orderID": order.order_id,
+            "Date": order.order_date.strftime('%Y-%m-%d %H:%M:%S'),
+            "UserName": order.user_name,
+            "item": {
+                "count": len(items_detail),
+                "names": [x["product_name"] for x in items_detail],
+                "detail": items_detail,
+            },
+            "total": float(order.total_price),
+            "status": order.status,
+            "Address": address,
+            "email": email,
+            "order_placed_on": order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            "notes": order.notes or "",
+        }
 
 
 class DeleteOrderAPIView(APIView):

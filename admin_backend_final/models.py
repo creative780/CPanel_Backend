@@ -613,7 +613,7 @@ class Orders(models.Model):
     order_id = models.CharField(primary_key=True, max_length=100)
     device_uuid = models.CharField(max_length=100, null=True, blank=True, db_index=True)
     user_name = models.CharField(max_length=255, blank=True)
-    order_date = models.DateTimeField()
+    order_date = models.DateTimeField(db_index=True)
     status = models.CharField(max_length=50, choices=[
         ("pending", "Pending"),
         ("processing", "Processing"),

@@ -166,7 +166,8 @@ class ShowCategoryAPIView(APIView):
                 "description": cat.description,
             })
 
-        return Response(result, status=status.HTTP_200_OK)
+        response = Response(result, status=status.HTTP_200_OK)
+        return response
 
 
 class EditCategoryAPIView(APIView):

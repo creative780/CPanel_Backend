@@ -554,7 +554,7 @@ class HeroBannerAPIView(APIView):
         try:
             hero = HeroBanner.objects.last()
             if not hero:
-                return Response({
+                response = Response({
                     "images": [
                         {
                             "url": absolutize_media_url(request, "/media/uploads/desktop_default.jpg"),
@@ -566,6 +566,8 @@ class HeroBannerAPIView(APIView):
                         },
                     ]
                 }, status=status.HTTP_200_OK)
+                response["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
+                return response
 
             images = hero.images.order_by("order").all()
             image_urls = []
@@ -583,7 +585,9 @@ class HeroBannerAPIView(APIView):
                     "device_type": hi.device_type,
                 })
 
-            return Response({"images": image_urls}, status=status.HTTP_200_OK)
+            response = Response({"images": image_urls}, status=status.HTTP_200_OK)
+            response["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
+            return response
 
         except Exception as e:
             print("❌ HeroBanner GET Error:", traceback.format_exc())

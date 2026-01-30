@@ -16,6 +16,7 @@ from django.db.models import Prefetch, Q
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.pagination import PageNumberPagination
 
 # Utilities / Local
 from .utilities import (
@@ -863,11 +864,25 @@ class ShowProductsAPIView(APIView):
                 Q(long_description__icontains=search)
             )
         
-        # Order and convert to list
-        products = list(products_qs.order_by('order'))
+        # Order the queryset
+        products_qs = products_qs.order_by('order')
+
+        # Check if pagination is requested
+        page = request.GET.get('page')
+        if page:
+            paginator = PageNumberPagination()
+            paginator.page_size = int(request.GET.get('page_size', 20))
+            products_page = paginator.paginate_queryset(products_qs, request)
+            products = list(products_page) if products_page is not None else []
+            is_paginated = True
+        else:
+            products = list(products_qs)
+            is_paginated = False
         
         if not products:
-            return Response([], status=status.HTTP_200_OK)
+            response = Response([], status=status.HTTP_200_OK)
+            response["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
+            return response
 
         # --- images (first/primary) ---
         first_image_by_pk = {}
@@ -958,7 +973,11 @@ class ShowProductsAPIView(APIView):
                 "long_description": getattr(p, "long_description", ""), 
             })
 
-        return Response(out, status=status.HTTP_200_OK)
+        if is_paginated:
+            return paginator.get_paginated_response(out)
+
+        response = Response(out, status=status.HTTP_200_OK)
+        return response
 
 class ShowSpecificProductAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
