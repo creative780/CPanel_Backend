@@ -715,9 +715,19 @@ class DeleteOrderAPIView(APIView):
             'not_found': not_found
         }
         
-        if errors:
+        if errors or not_found:
+            # If there were any errors or items not found, mark as failed/partial failure
+            # and return 400 so frontend catches it.
+            response_data['success'] = False
             response_data['errors'] = errors
-            response_data['message'] += f'. {len(errors)} error(s) occurred.'
+            
+            if errors:
+                response_data['message'] += f'. {len(errors)} error(s) occurred'
+            if not_found:
+                 response_data['message'] += f'. {len(not_found)} order(s) not found'
+
+            response_data['error'] = response_data['message']
+            return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(response_data, status=status.HTTP_200_OK)
 

@@ -812,24 +812,28 @@ class DeleteProductAPIView(APIView):
 
             # After loop, verify deletions
             if failed_deletes:
+                msg = f'Deleted {deleted_count} product(s), but {len(failed_deletes)} failed'
                 logger.warning(f"Failed to delete {len(failed_deletes)} product(s): {failed_deletes}")
                 return Response({
                     'success': False,
-                    'message': f'Deleted {deleted_count} product(s), but {len(failed_deletes)} failed',
+                    'message': msg,
+                    'error': msg,
                     'deleted_count': deleted_count,
                     'failed_ids': failed_deletes
-                }, status=status.HTTP_207_MULTI_STATUS)
+                }, status=status.HTTP_400_BAD_REQUEST)
 
             # Verify products are actually deleted
             remaining = Product.objects.filter(product_id__in=ids).count()
             if remaining > 0:
+                msg = f'Deleted {deleted_count} product(s), but {remaining} still exist in database'
                 logger.warning(f"Warning: {remaining} product(s) still exist after deletion attempt")
                 return Response({
                     'success': False,
-                    'message': f'Deleted {deleted_count} product(s), but {remaining} still exist in database',
+                    'message': msg,
+                    'error': msg,
                     'deleted_count': deleted_count,
                     'remaining_count': remaining
-                }, status=status.HTTP_207_MULTI_STATUS)
+                }, status=status.HTTP_400_BAD_REQUEST)
 
             return Response({
                 'success': True,

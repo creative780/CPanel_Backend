@@ -333,10 +333,11 @@ class DeleteCategoryAPIView(APIView):
         }
         
         if errors:
+            response_data['success'] = False
             response_data['errors'] = errors
             response_data['message'] += f'. {len(errors)} error(s) occurred.'
         
-        return Response(response_data, status=status.HTTP_200_OK)
+        return Response(response_data, status=status.HTTP_200_OK if not errors else status.HTTP_400_BAD_REQUEST)
 
 
 class UpdateCategoryOrderAPIView(APIView):
@@ -652,10 +653,11 @@ class DeleteSubCategoryAPIView(APIView):
             }
             
             if errors:
+                response_data['success'] = False
                 response_data['errors'] = errors
                 response_data['message'] += f'. {len(errors)} error(s) occurred.'
             
-            return Response(response_data, status=status.HTTP_200_OK)
+            return Response(response_data, status=status.HTTP_200_OK if not errors else status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
             traceback.print_exc()
