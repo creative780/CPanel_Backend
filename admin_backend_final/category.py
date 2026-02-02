@@ -40,9 +40,9 @@ class SaveCategoryAPIView(APIView):
         if not name:
             return Response({'error': 'Name is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Keep original "replace existing with same name"
-        if Category.objects.filter(name=name).exists():
-            Category.objects.get(name=name).delete()
+        # Reject duplicate category names
+        if Category.objects.filter(name__iexact=name).exists():
+            return Response({'error': f"A category with the name '{name}' already exists."}, status=status.HTTP_400_BAD_REQUEST)
 
         category_id = generate_category_id(name)
         now = timezone.now()
@@ -185,6 +185,9 @@ class EditCategoryAPIView(APIView):
         # -------- Basic fields --------
         new_name = (data.get('name') or '').strip()
         if new_name:
+            # Check for duplicate name (exclude current category)
+            if Category.objects.filter(name__iexact=new_name).exclude(category_id=category_id).exists():
+                return Response({'error': f"A category with the name '{new_name}' already exists."}, status=status.HTTP_400_BAD_REQUEST)
             category.name = new_name
 
         if 'caption' in data:
@@ -369,14 +372,9 @@ class SaveSubCategoryAPIView(APIView):
         if not categories.exists():
             return Response({'error': 'One or more category IDs not found'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Duplicate subcategory name in same category
-        existing_matches = CategorySubCategoryMap.objects.filter(
-            category__in=categories,
-            subcategory__name__iexact=name
-        ).exists()
-        if existing_matches:
-            return Response({'error': f"Subcategory '{name}' already exists in one or more selected categories."},
-                            status=status.HTTP_400_BAD_REQUEST)
+        # Reject duplicate subcategory names (global uniqueness)
+        if SubCategory.objects.filter(name__iexact=name).exists():
+            return Response({'error': f"A subcategory with the name '{name}' already exists."}, status=status.HTTP_400_BAD_REQUEST)
 
         subcategory_id = generate_subcategory_id(name, category_ids)
         now = timezone.now()
@@ -477,6 +475,12 @@ class EditSubCategoryAPIView(APIView):
         # -------- Basic fields --------
         new_name = (data.get('name') or '').strip()
         if new_name:
+            # Check for duplicate name globally (excluding self)
+            if SubCategory.objects.filter(name__iexact=new_name).exclude(subcategory_id=subcategory_id).exists():
+                return Response(
+                    {'error': f"A subcategory with the name '{new_name}' already exists."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             subcategory.name = new_name
 
         if 'caption' in data:
@@ -496,18 +500,6 @@ class EditSubCategoryAPIView(APIView):
             categories_qs = Category.objects.filter(category_id__in=new_cat_ids)
             if categories_qs.count() != len(new_cat_ids):
                 return Response({'error': 'One or more category IDs not found'}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Prevent duplicate name in same category (excluding self)
-            effective_name = new_name or subcategory.name
-            dup_exists = CategorySubCategoryMap.objects.filter(
-                category__in=categories_qs,
-                subcategory__name__iexact=effective_name
-            ).exclude(subcategory=subcategory).exists()
-            if dup_exists:
-                return Response(
-                    {'error': f"Subcategory '{effective_name}' already exists in one or more selected categories."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
 
             # Reconcile mappings
             existing_maps = CategorySubCategoryMap.objects.filter(subcategory=subcategory)

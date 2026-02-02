@@ -279,6 +279,10 @@ class SaveSubcatAttributesAPIView(APIView):
         if err:
             return Response({"error": err}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Reject duplicate attribute names (global uniqueness)
+        if AttributeSubCategory.objects.filter(name__iexact=normalized["name"]).exists():
+            return Response({"error": f"An attribute with the name '{normalized['name']}' already exists."}, status=status.HTTP_400_BAD_REQUEST)
+
         # If slug collides (race), re-ensure
         if AttributeSubCategory.objects.filter(slug=normalized["slug"]).exists():
             normalized["slug"] = _ensure_unique_slug(normalized["slug"])
@@ -317,6 +321,10 @@ class EditSubcatAttributesAPIView(APIView):
         normalized, err = _normalize_payload(payload, is_create=False)
         if err:
             return Response({"error": err}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check for duplicate name (exclude current attribute)
+        if AttributeSubCategory.objects.filter(name__iexact=normalized["name"]).exclude(attribute_id=obj.attribute_id).exists():
+            return Response({"error": f"An attribute with the name '{normalized['name']}' already exists."}, status=status.HTTP_400_BAD_REQUEST)
 
         if normalized["slug"] != obj.slug and AttributeSubCategory.objects.exclude(attribute_id=obj.attribute_id).filter(slug=normalized["slug"]).exists():
             normalized["slug"] = _ensure_unique_slug(normalized["slug"])

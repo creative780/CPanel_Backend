@@ -83,22 +83,17 @@ def save_product_basic(data, is_edit=False, existing_product=None):
     if is_edit and existing_product:
         product = existing_product
     else:
-        existing_map = (
-            ProductSubCategoryMap.objects
-            .select_related("product", "subcategory")
-            .filter(subcategory__subcategory_id=subcategory_ids[0], product__title=name)
-            .first()
+        # Reject duplicate product names (global uniqueness)
+        if Product.objects.filter(title__iexact=name).exists():
+            raise IntegrityError(f"A product with the name '{name}' already exists.")
+        
+        product_id = generate_product_id(name, subcategory_ids[0])
+        product = Product(
+            product_id=product_id,
+            created_by='SuperAdmin',
+            created_by_type='admin',
+            created_at=now
         )
-        if existing_map:
-            product = existing_map.product
-        else:
-            product_id = generate_product_id(name, subcategory_ids[0])
-            product = Product(
-                product_id=product_id,
-                created_by='SuperAdmin',
-                created_by_type='admin',
-                created_at=now
-            )
 
     # Shared assignment logic
     product.title = name                     
@@ -732,9 +727,17 @@ class SaveProductAPIView(APIView):
             )
 
         except IntegrityError as e:
+            error_msg = str(e)
+            # Check if it's a duplicate name error
+            if "already exists" in error_msg:
+                logger.warning(f"SaveProduct duplicate name: {error_msg}")
+                return Response(
+                    {"error": error_msg},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             logger.exception("SaveProduct IntegrityError (rolled back)")
             return Response(
-                {"error": "Integrity error while saving product", "detail": str(e)},
+                {"error": "Integrity error while saving product", "detail": error_msg},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -851,10 +854,8 @@ class ShowProductsAPIView(APIView):
         # Extract search parameter
         search = request.GET.get('search', '').strip()
         
-        # Start with base queryset - exclude test products and hidden/inactive/deleted products
+        # Start with base queryset - exclude hidden/inactive/deleted products
         products_qs = Product.objects.exclude(
-            Q(title__in=['fghjd', 'kela', 'amb kela', 'aaa', 'abid ali', 'amb amb kela', 'abid abid ali', 'amb kela kino'])
-        ).exclude(
             Q(status__iexact='hidden') | 
             Q(status__iexact='inactive') |
             Q(status__iexact='deleted')  # Safety measure for soft-deleted products
@@ -1475,7 +1476,11 @@ class EditProductAPIView(APIView):
 
                         # Title is editable if a non-empty name is provided
                         if 'name' in data and (data.get('name') or '').strip():
-                            product.title = data.get('name').strip()
+                            new_name = data.get('name').strip()
+                            # Check for duplicate name (exclude current product)
+                            if Product.objects.filter(title__iexact=new_name).exclude(product_id=product_id).exists():
+                                return Response({'error': f"A product with the name '{new_name}' already exists."}, status=status.HTTP_400_BAD_REQUEST)
+                            product.title = new_name
 
                         # Respect rich HTML; do not blank unless explicitly sent non-empty
                         if 'description' in data:
