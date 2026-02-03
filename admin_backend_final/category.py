@@ -360,10 +360,24 @@ class UpdateCategoryOrderAPIView(APIView):
 class SaveSubCategoryAPIView(APIView):
     permission_classes = [FrontendOnlyPermission]
 
+    @transaction.atomic
     def post(self, request):
-        data = request.POST
+        if request.content_type and 'application/json' in request.content_type:
+            try:
+                data = request.data if isinstance(request.data, dict) else json.loads(request.body.decode('utf-8') or '{}')
+            except Exception:
+                data = {}
+        else:
+            data = request.POST
+        
         name = (data.get('name') or '').strip()
-        category_ids = data.getlist('category_ids')
+        # Handle both list (JSON) and getlist (Multipart)
+        if hasattr(data, 'getlist'):
+            category_ids = data.getlist('category_ids')
+        else:
+            cat_ids_raw = data.get('category_ids', [])
+            category_ids = cat_ids_raw if isinstance(cat_ids_raw, list) else ([cat_ids_raw] if cat_ids_raw else [])
+
 
         if not name or not category_ids:
             return Response({'error': 'Name and category_ids are required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -465,8 +479,16 @@ class EditSubCategoryAPIView(APIView):
 
     @transaction.atomic
     def post(self, request):
-        data = request.POST
+        if request.content_type and 'application/json' in request.content_type:
+            try:
+                data = request.data if isinstance(request.data, dict) else json.loads(request.body.decode('utf-8') or '{}')
+            except Exception:
+                data = {}
+        else:
+            data = request.POST
+
         subcategory_id = data.get('subcategory_id')
+
         try:
             subcategory = SubCategory.objects.select_related().get(subcategory_id=subcategory_id)
         except SubCategory.DoesNotExist:
@@ -489,9 +511,15 @@ class EditSubCategoryAPIView(APIView):
             subcategory.description = (data.get('description') or '').strip() or None
 
         # -------- Category mappings (THIS WAS MISSING) --------
-        # Frontend sends multiple category_ids fields
-        incoming_category_ids = data.getlist('category_ids')
+        # Handle both list (JSON) and getlist (Multipart)
+        if hasattr(data, 'getlist'):
+            incoming_category_ids = data.getlist('category_ids')
+        else:
+            cat_ids_raw = data.get('category_ids', [])
+            incoming_category_ids = cat_ids_raw if isinstance(cat_ids_raw, list) else ([cat_ids_raw] if cat_ids_raw else [])
+
         if incoming_category_ids:
+
             # Normalize & validate targets
             new_cat_ids = set([cid.strip() for cid in incoming_category_ids if cid and cid.strip()])
             if not new_cat_ids:

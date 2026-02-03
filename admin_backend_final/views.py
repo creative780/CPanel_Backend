@@ -411,26 +411,33 @@ class EditAdminAPIView(APIView):
             admin.save()
 
             # Create or update role
-            role, created = AdminRole.objects.get_or_create(
-                role_name=role_name,
-                defaults={
-                    "role_id": f"R-{role_name}",
-                    "description": f"{role_name} role",
-                    "access_pages": access_pages or []
-                }
-            )
+            # ROBUSTNESS: Handle duplicate roles if they exist
+            existing_roles = AdminRole.objects.filter(role_name=role_name).order_by('role_id')
+            if existing_roles.count() > 1:
+                # Keep the first one, delete others to clean up DB
+                role = existing_roles.first()
+                for dup in existing_roles[1:]:
+                    dup.delete()
+                created = False
+            else:
+                role, created = AdminRole.objects.get_or_create(
+                    role_name=role_name,
+                    defaults={
+                        "role_id": f"R-{role_name}",
+                        "description": f"{role_name} role",
+                        "access_pages": access_pages or []
+                    }
+                )
 
             # If role already exists and client sent access_pages, update it
-            # (Note: role.access_pages is shared across all admins with this role)
             if not created and access_pages is not None:
                 role.access_pages = access_pages
                 role.save()
 
             # Update admin ↔ role mapping
-            AdminRoleMap.objects.update_or_create(
-                admin=admin,
-                defaults={"role": role}
-            )
+            # ROBUSTNESS: Ensure we don't duplicate the mapping either
+            AdminRoleMap.objects.filter(admin=admin).delete()
+            AdminRoleMap.objects.create(admin=admin, role=role)
 
             # Response payload aligned with ShowAdminAPIView shape (where possible)
             return Response({
